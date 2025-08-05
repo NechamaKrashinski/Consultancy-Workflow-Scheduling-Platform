@@ -1,0 +1,43 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POST Request Example</title>
+</head>
+<body>
+    <h1>POST Request Example</h1>
+    <script>
+        const data = {
+            businessHourId: 1,
+            serviceId: 2,
+            clientId: 3,
+            date: '2023-10-01',
+            startTime: '10:00',
+            endTime: '11:00',
+            notes: 'Some notes'
+        };
+
+        fetch('http://localhost:3000/meetings', {  // עדכן את הכתובת בהתאם לשרת שלך
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(meeting => {
+            console.log('Meeting created successfully:', meeting);
+        })
+        .catch(error => {
+            console.error('Error creating meeting:', error.message);
+        });
+    </script>
+</body>
+</html>

@@ -48,18 +48,19 @@ const createMeeting = async (businessHourId, serviceId, clientId, date, startTim
     }
     
     // 5. המרת זמנים ותאריכים לפורמט אחיד לבדיקה ושמירה
-    const parseTime = (timeStr) => {
-        if (timeStr instanceof Date) return timeStr;
-        // להמיר ל-Date עם תאריך ברירת מחדל לבדיקות
-        return new Date(`1970-01-01T${timeStr}.000Z`);
-    };
-    
-    const parseTimeForSave = (timeStr) => {
-        // להמיר לפורמט TIME של MSSQL (רק שעה ללא תאריך)
-        if (timeStr instanceof Date) {
-            return timeStr.toISOString().substr(11, 8); // "HH:MM:SS"
+    const normalizeTimeString = (timeStr) => {
+        // בדיקה אם יש שניות, אם לא - הוסף אותן
+        if (timeStr.includes(':') && timeStr.split(':').length === 2) {
+            return `${timeStr}:00`;
         }
-        return timeStr; // אם זה כבר string, החזר כמו שזה
+        return timeStr;
+    };
+
+    const parseTimeForComparison = (timeStr) => {
+        // ליצור Date object רק לצורך השוואה
+        if (timeStr instanceof Date) return timeStr;
+        const normalizedTime = normalizeTimeString(timeStr);
+        return new Date(`1970-01-01T${normalizedTime}.000Z`);
     };
     
     const parseDate = (dateStr) => {
@@ -67,25 +68,24 @@ const createMeeting = async (businessHourId, serviceId, clientId, date, startTim
         return new Date(dateStr);
     };
     
-    // לבדיקות - Date objects
-    const startTimeDate = parseTime(startTime);
-    const endTimeDate = parseTime(endTime);
+    // המרת זמנים לפורמטים שונים
+    const startTimeString = normalizeTimeString(startTime);
+    const endTimeString = normalizeTimeString(endTime);
+    const startTimeForComparison = parseTimeForComparison(startTime);
+    const endTimeForComparison = parseTimeForComparison(endTime);
     const meetingDate = parseDate(date);
     
-    // לשמירה - string format
-    const startTimeString = parseTimeForSave(startTime);
-    const endTimeString = parseTimeForSave(endTime);
-    
-    console.log("Parsed for checks - Start:", startTimeDate, "End:", endTimeDate, "Date:", meetingDate);
-    console.log("Parsed for save - Start:", startTimeString, "End:", endTimeString);
+    console.log("Time formats - String:", startTimeString, endTimeString);
+    console.log("For comparison:", startTimeForComparison, endTimeForComparison);
+    console.log("Meeting date:", meetingDate);
     
     // 6. בדיקה ישירה במסד נתונים - הגנה נגד duplicates
     const existingMeeting = await Meeting.findOne({
         where: {
             business_hour_id: businessHourId,
             date: meetingDate,
-            start_time: startTimeDate,
-            end_time: endTimeDate,
+            start_time: startTimeForComparison,
+            end_time: endTimeForComparison,
             status: ['booked', 'confirmed']
         }
     });
@@ -104,20 +104,20 @@ const createMeeting = async (businessHourId, serviceId, clientId, date, startTim
                 {
                     // מקרה 1: הפגישה הקיימת מתחילה לפני או בזמן תחילת הפגישה החדשה
                     // ומסתיימת אחרי תחילת הפגישה החדשה
-                    start_time: { [Op.lte]: startTimeDate },
-                    end_time: { [Op.gt]: startTimeDate }
+                    start_time: { [Op.lte]: startTimeForComparison },
+                    end_time: { [Op.gt]: startTimeForComparison }
                 },
                 {
                     // מקרה 2: הפגישה הקיימת מתחילה לפני סיום הפגישה החדשה
                     // ומסתיימת אחרי או בזמן סיום הפגישה החדשה
-                    start_time: { [Op.lt]: endTimeDate },
-                    end_time: { [Op.gte]: endTimeDate }
+                    start_time: { [Op.lt]: endTimeForComparison },
+                    end_time: { [Op.gte]: endTimeForComparison }
                 },
                 {
                     // מקרה 3: הפגישה הקיימת מתחילה אחרי תחילת הפגישה החדשה
                     // ומסתיימת לפני סיום הפגישה החדשה (הפגישה החדשה מכסה את הקיימת)
-                    start_time: { [Op.gte]: startTimeDate },
-                    end_time: { [Op.lte]: endTimeDate }
+                    start_time: { [Op.gte]: startTimeForComparison },
+                    end_time: { [Op.lte]: endTimeForComparison }
                 }
             ]
         }

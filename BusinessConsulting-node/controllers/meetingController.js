@@ -21,7 +21,13 @@ const createMeetingController = async (req, res) => {
 
 const getMeetingsController = async (req, res) => {
     try {
-        const clientId = req.params.clientId || null;
+        let clientId = req.params.clientId || null;
+        
+        // אם אין clientId בפרמטרים, נשתמש בלקוח מהtoken
+        if (!clientId && req.client && req.client.role === 'client') {
+            clientId = req.client.id;
+        }
+        
         const meetings = await getMeetings(clientId);
         res.status(200).json(meetings);
     } catch (error) {

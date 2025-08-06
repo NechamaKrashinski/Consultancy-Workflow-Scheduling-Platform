@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { fetchServices } from '../../store/slices/servicesSlice';
-import { createMeeting } from '../../store/slices/meetingsSlice';
-import { Calendar, Clock, DollarSign, User, ArrowLeft, CheckCircle } from 'lucide-react';
-import { servicesAPI } from '../../services/api';
+import { Clock, DollarSign, User, ArrowLeft, CheckCircle } from 'lucide-react';
+import { Service } from '../../types';
 
 interface Consultant {
   id: number;
@@ -25,7 +24,7 @@ interface AvailableSlots {
 
 const BookingPage: React.FC = () => {
   const [step, setStep] = useState<'services' | 'consultants' | 'times' | 'confirm' | 'success'>('services');
-  const [selectedService, setSelectedService] = useState<any>(null);
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedConsultant, setSelectedConsultant] = useState<Consultant | null>(null);
   const [consultants, setConsultants] = useState<Consultant[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>('');
@@ -43,7 +42,7 @@ const BookingPage: React.FC = () => {
     dispatch(fetchServices());
   }, [dispatch]);
 
-  const handleServiceSelect = async (service: any) => {
+  const handleServiceSelect = async (service: Service) => {
     setSelectedService(service);
     setIsLoading(true);
     
@@ -61,6 +60,8 @@ const BookingPage: React.FC = () => {
   };
 
   const handleConsultantSelect = async (consultant: Consultant) => {
+    if (!selectedService) return;
+    
     setSelectedConsultant(consultant);
     setIsLoading(true);
 

@@ -1,6 +1,7 @@
 
 const express = require('express');
 const router = express.Router();
+const { authenticateToken } = require('../middleware/authMiddleware');
 const {
     createMeetingController,
     getMeetingsController,
@@ -12,6 +13,7 @@ const {
 
 router.post('/', createMeetingController);
 router.get('/client/:clientId', getMeetingsController);
+router.get('/client', authenticateToken, getMeetingsController); // עבור לקוח מ-token
 router.get('/manager', getMeetingsController); // עבור מנהלים
 router.put('/:id', updateMeetingController);
 router.delete('/:id', deleteMeetingController);

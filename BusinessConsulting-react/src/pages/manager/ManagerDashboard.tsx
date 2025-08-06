@@ -1,28 +1,38 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { fetchServices } from '../../store/slices/servicesSlice';
 import { fetchManagerMeetings } from '../../store/slices/meetingsSlice';
 import { fetchConsultants } from '../../store/slices/businessConsultantSlice';
 import { logoutUser } from '../../store/slices/authSlice';
+import { MeetingStatus, TabId } from '../../types';
 import { LogOut, BarChart3, Calendar, Settings, Users } from 'lucide-react';
 import ServicesPage from './ServicesPage';
 import MeetingsPage from './MeetingsPage';
 import ConsultantLinking from './ConsultantService'; // ייבוא הקומפוננטה החדשה
 
 const ManagerDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'services' | 'meetings' | 'consultant-linking'>('overview'); // עדכון סוג ה-state
+  const [activeTab, setActiveTab] = useState<TabId>('overview');
   
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((state) => state.auth);
-  const { services } = useAppSelector((state) => state.services);
-  const { meetings } = useAppSelector((state) => state.meetings);
-  const { consultants } = useAppSelector((state) => state.consultants);
+  const { services, error: servicesError } = useAppSelector((state) => state.services);
+  const { meetings, error: meetingsError } = useAppSelector((state) => state.meetings);
+  const { consultants, error: consultantsError } = useAppSelector((state) => state.consultants);
 
   useEffect(() => {
     dispatch(fetchServices());
     dispatch(fetchManagerMeetings());
     dispatch(fetchConsultants());
   }, [dispatch]);
+
+  // Performance optimization: מחשב את הfilters רק כשהmeetings משתנים
+  const activeMeetingsCount = useMemo(() => 
+    meetings.filter(apt => apt.status === MeetingStatus.BOOKED).length, [meetings]
+  );
+  
+  const pendingApprovalsCount = useMemo(() => 
+    meetings.filter(apt => apt.status === MeetingStatus.AVAILABLE).length, [meetings]
+  );
 
   const handleLogout = () => {
     dispatch(logoutUser());
@@ -37,13 +47,13 @@ const ManagerDashboard: React.FC = () => {
     },
     {
       name: 'Active Meetings',
-      value: meetings.filter(apt => apt.status === 'booked').length,
+      value: activeMeetingsCount,
       icon: Calendar,
       color: 'bg-emerald-500'
     },
     {
       name: 'Pending Approvals',
-      value: meetings.filter(apt => apt.status === 'available').length,
+      value: pendingApprovalsCount,
       icon: Users,
       color: 'bg-amber-500'
     },
@@ -61,11 +71,11 @@ const ManagerDashboard: React.FC = () => {
     }
   ];
 
-  const tabs = [
+  const tabs: { id: TabId; name: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'overview', name: 'Overview', icon: BarChart3 },
     { id: 'services', name: 'Services', icon: Settings },
     { id: 'meetings', name: 'Meetings', icon: Calendar },
-    { id: 'consultant-linking', name: 'Consultant Linking', icon: Users } // טאב חדש
+    { id: 'consultant-linking', name: 'Consultant Linking', icon: Users }
   ];
 
   return (
@@ -103,7 +113,7 @@ const ManagerDashboard: React.FC = () => {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center px-6 py-3 text-sm font-medium rounded-lg transition-all ${
                     activeTab === tab.id
                       ? 'bg-blue-600 text-white shadow-lg'
@@ -117,6 +127,18 @@ const ManagerDashboard: React.FC = () => {
             })}
           </nav>
         </div>
+
+        {/* Error Display */}
+        {(servicesError || meetingsError || consultantsError) && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+            <h4 className="text-red-800 font-medium mb-2">Errors occurred:</h4>
+            <div className="space-y-1 text-sm text-red-700">
+              {servicesError && <p>• Services: {servicesError}</p>}
+              {meetingsError && <p>• Meetings: {meetingsError}</p>}
+              {consultantsError && <p>• Consultants: {consultantsError}</p>}
+            </div>
+          </div>
+        )}
 
         {/* Overview Tab */}
         {activeTab === 'overview' && (
@@ -154,8 +176,8 @@ const ManagerDashboard: React.FC = () => {
                       <div className="text-right">
                         <p className="text-sm text-gray-600">{meeting.date} at {meeting.start_time}</p>
                         <span className={`inline-flex px-2 py-1 text-xs rounded-full ${
-                          meeting.status === 'booked' ? 'bg-emerald-100 text-emerald-800' :
-                          meeting.status === 'available' ? 'bg-amber-100 text-amber-800' :
+                          meeting.status === MeetingStatus.BOOKED ? 'bg-emerald-100 text-emerald-800' :
+                          meeting.status === MeetingStatus.AVAILABLE ? 'bg-amber-100 text-amber-800' :
                           'bg-gray-100 text-gray-800'
                         }`}>
                           {meeting.status}

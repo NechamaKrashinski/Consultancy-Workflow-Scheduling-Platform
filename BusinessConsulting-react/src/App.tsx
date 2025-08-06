@@ -42,7 +42,6 @@ const AppContent: React.FC = () => {
         element={
           <ProtectedRoute requiredRole="client">
             <ClientDashboard />
-            {/* <BookingPage /> */}
           </ProtectedRoute>
         } 
       />
@@ -56,7 +55,7 @@ const AppContent: React.FC = () => {
           )
         } 
       />
-      <Route path="*" element={<Navigate to="/\" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   ); 
 };

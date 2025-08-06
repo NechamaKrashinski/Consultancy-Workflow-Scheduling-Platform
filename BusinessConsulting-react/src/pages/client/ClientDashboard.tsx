@@ -4,19 +4,20 @@ import { fetchServices } from '../../store/slices/servicesSlice';
 import { fetchClientMeetings } from '../../store/slices/meetingsSlice';
 import { logoutUser } from '../../store/slices/authSlice';
 import { LogOut, Calendar, Clock, CheckCircle, XCircle, AlertCircle, DollarSign, User, ArrowLeft } from 'lucide-react';
+import { Service, BusinessConsultant } from '../../types';
 
 const ClientDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'book-meeting' | 'my-meetings'>('book-meeting');
   
   // Booking states
   const [step, setStep] = useState<'services' | 'consultants' | 'times' | 'confirm' | 'success'>('services');
-  const [selectedService, setSelectedService] = useState<any>(null);
-  const [selectedConsultant, setSelectedConsultant] = useState<any>(null);
-  const [consultants, setConsultants] = useState<any[]>([]);
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [selectedConsultant, setSelectedConsultant] = useState<BusinessConsultant | null>(null);
+  const [consultants, setConsultants] = useState<BusinessConsultant[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [selectedBusinessHourId, setSelectedBusinessHourId] = useState<number | null>(null);
-  const [availableSlots, setAvailableSlots] = useState<any>({});
+  const [availableSlots, setAvailableSlots] = useState<Record<string, Record<string, { start: string; businessHourId: number }[]>>>({});
   const [notes, setNotes] = useState<string>('');
   const [isBookingLoading, setIsBookingLoading] = useState(false);
 
@@ -37,7 +38,7 @@ const ClientDashboard: React.FC = () => {
   };
 
   // Booking functions
-  const handleServiceSelect = async (service: any) => {
+  const handleServiceSelect = async (service: Service) => {
     setSelectedService(service);
     setIsBookingLoading(true);
     
@@ -53,7 +54,9 @@ const ClientDashboard: React.FC = () => {
     }
   };
 
-  const handleConsultantSelect = async (consultant: any) => {
+  const handleConsultantSelect = async (consultant: BusinessConsultant) => {
+    if (!selectedService) return;
+    
     setSelectedConsultant(consultant);
     setIsBookingLoading(true);
 
@@ -118,7 +121,7 @@ const ClientDashboard: React.FC = () => {
       
       const currentAvailableTimes = await verifyResponse.json();
       const availableSlots = currentAvailableTimes[selectedConsultant.id]?.[selectedDate] || [];
-      const isStillAvailable = availableSlots.some((slot: any) => 
+      const isStillAvailable = availableSlots.some((slot: { start: string; businessHourId: number }) => 
         slot.start === selectedTime && slot.businessHourId === selectedBusinessHourId
       );
       

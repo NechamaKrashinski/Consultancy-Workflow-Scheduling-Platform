@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { servicesAPI } from "../../services/api";
+import { getErrorMessage } from "../../types";
 import type {
   ServicesState,
   CreateServiceData,
@@ -20,9 +21,9 @@ export const fetchServices = createAsyncThunk<Service[], void>(
     try {
       const services = await servicesAPI.getServices();
       return services;
-    } catch (error: any) {
+    } catch (error: unknown) {
       return rejectWithValue(
-        error.response?.data?.message || "Failed to fetch services"
+        getErrorMessage(error) || "Failed to fetch services"
       );
     }
   }
@@ -32,13 +33,11 @@ export const createService = createAsyncThunk<Service, CreateServiceData>(
   "services/createService",
   async (data, { rejectWithValue }) => {
     try {
-      console.log(data);
-      
       const service = await servicesAPI.createService(data);
       return service;
-    } catch (error: any) {
+    } catch (error: unknown) {
       return rejectWithValue(
-        error.response?.data?.message || "Failed to create service"
+        getErrorMessage(error) || "Failed to create service"
       );
     }
   }
@@ -52,9 +51,9 @@ export const updateService = createAsyncThunk<
   try {
     const service = await servicesAPI.updateService(id, data);
     return service;
-  } catch (error: any) {
+  } catch (error: unknown) {
     return rejectWithValue(
-      error.response?.data?.message || "Failed to update service"
+      getErrorMessage(error) || "Failed to update service"
     );
   }
 });
@@ -65,9 +64,9 @@ export const deleteService = createAsyncThunk<string, string>(
     try {
       await servicesAPI.deleteService(id);
       return id;
-    } catch (error: any) {
+    } catch (error: unknown) {
       return rejectWithValue(
-        error.response?.data?.message || "Failed to delete service"
+        getErrorMessage(error) || "Failed to delete service"
       );
     }
   }
@@ -97,8 +96,6 @@ const servicesSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload as string;
       })
-      // Fetch manager services
-
       // Create service
       .addCase(createService.pending, (state) => {
         state.isLoading = true;
@@ -120,9 +117,9 @@ const servicesSlice = createSlice({
       })
       .addCase(updateService.fulfilled, (state, action) => {
         state.isLoading = false;
-        const index = state.services.findIndex(service => service.id === Number(action.meta.arg.id));
+        const index = state.services.findIndex(service => service.id === action.payload.id);
         if (index !== -1) {
-          state.services[index] = action.meta.arg.data as Service;
+          state.services[index] = action.payload;
         }
         state.error = null;
       })

@@ -1,5 +1,53 @@
 
 
+export enum MeetingStatus {
+  BOOKED = 'booked',
+  AVAILABLE = 'available', 
+  PENDING = 'pending',
+  CONFIRMED = 'confirmed'
+}
+
+// UI Types
+export type TabId = 'overview' | 'services' | 'meetings' | 'consultant-linking';
+
+// Error handling types
+export interface ApiErrorResponse {
+  message: string;
+  status?: number;
+  data?: Record<string, unknown>;
+}
+
+export interface ApiError {
+  response?: {
+    data?: ApiErrorResponse;
+    status?: number;
+  };
+  message: string;
+}
+
+// Utility function for type-safe error handling
+export const getErrorMessage = (error: unknown): string => {
+  if (typeof error === 'string') {
+    return error;
+  }
+  
+  if (error && typeof error === 'object') {
+    const apiError = error as ApiError;
+    
+    // Check for Axios error response
+    if (apiError.response?.data?.message) {
+      return apiError.response.data.message;
+    }
+    
+    // Check for general error message
+    if (apiError.message) {
+      return apiError.message;
+    }
+  }
+  
+  return 'An unexpected error occurred';
+};
+
 export interface BusinessDetail {
   id: number;
   name: string;
@@ -26,7 +74,7 @@ export interface Meeting {
   date: string;
   start_time: string;
   end_time: string;
-  status: string;
+  status: MeetingStatus;
   service?: {
     name: string;
   };
@@ -39,7 +87,7 @@ export interface Meeting {
 
 
 export interface Service {
-  id: number | undefined;
+  id: number;
   name: string;
   description?: string;
   duration: number;
@@ -63,13 +111,6 @@ export interface MeetingState {
   meetings: Meeting[];
   isLoading: boolean;
   error: string | null;
-}
-export interface BusinessConsultantState {
-  id: number; // מזהה ייחודי
-  name: string; // שם היועץ
-  password: string; // סיסמת היועץ
-  email: string; // דוא"ל היועץ
-  role: 'manager' | 'consultant'; // תפקיד היועץ
 }
 export interface LoginCredentials {
   email: string;
@@ -97,8 +138,6 @@ export interface UpdateMeetingData {
 }
 
 export interface CreateServiceData {
-
-  id: number | undefined;
   name: string;
   description: string;
   price: number;

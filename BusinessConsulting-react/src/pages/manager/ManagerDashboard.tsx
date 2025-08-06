@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { fetchServices } from '../../store/slices/servicesSlice';
-import { fetchMeetings } from '../../store/slices/meetingsSlice';
+import { fetchManagerMeetings } from '../../store/slices/meetingsSlice';
 import { fetchConsultants } from '../../store/slices/businessConsultantSlice';
 import { logoutUser } from '../../store/slices/authSlice';
 import { LogOut, BarChart3, Calendar, Settings, Users } from 'lucide-react';
@@ -20,7 +20,7 @@ const ManagerDashboard: React.FC = () => {
 
   useEffect(() => {
     dispatch(fetchServices());
-    dispatch(fetchMeetings());
+    dispatch(fetchManagerMeetings());
     dispatch(fetchConsultants());
   }, [dispatch]);
 

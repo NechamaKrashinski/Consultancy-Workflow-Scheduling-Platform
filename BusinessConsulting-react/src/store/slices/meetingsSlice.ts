@@ -35,6 +35,18 @@ export const fetchClientMeetings = createAsyncThunk<Meeting[], void>(
   }
 );
 
+export const fetchManagerMeetings = createAsyncThunk<Meeting[], void>(
+  'meetings/fetchManagerMeetings',
+  async (_, { rejectWithValue }) => {
+    try {
+      const meetings = await meetingsAPI.getManagerMeetings();
+      return meetings;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch manager meetings');
+    }
+  }
+);
+
 export const createMeeting = createAsyncThunk<Meeting, CreateMeetingData>(
   'meetings/createMeeting',
   async (data, { rejectWithValue }) => {
@@ -111,6 +123,22 @@ const meetingsSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload as string;
       })
+      
+      // Fetch manager meetings
+      .addCase(fetchManagerMeetings.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchManagerMeetings.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.meetings = action.payload;
+        state.error = null;
+      })
+      .addCase(fetchManagerMeetings.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      })
+      
       // Create meeting
       .addCase(createMeeting.pending, (state) => {
         state.isLoading = true;

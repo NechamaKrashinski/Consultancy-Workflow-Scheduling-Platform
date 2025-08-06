@@ -8,6 +8,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
 import ManagerDashboard from './pages/manager/ManagerDashboard';
 import BookingPage from './pages/client/BookingPage';
+import ClientDashboard from './pages/client/ClientDashboard';
 // import ClientDashboard from './pages/client/ClientDashboard';
 
 
@@ -42,8 +43,8 @@ const AppContent: React.FC = () => {
         path="/client/*" 
         element={
           <ProtectedRoute requiredRole="client">
-            {/* <ClientDashboard /> */}
-            <BookingPage />
+            <ClientDashboard />
+            {/* <BookingPage /> */}
           </ProtectedRoute>
         } 
       />

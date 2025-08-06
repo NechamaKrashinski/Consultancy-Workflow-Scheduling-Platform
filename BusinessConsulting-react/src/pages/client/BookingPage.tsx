@@ -116,6 +116,33 @@ const BookingPage: React.FC = () => {
     setIsLoading(true);
     
     try {
+      // בדיקה מחדש של זמינות לפני יצירת הפגישה
+      console.log('🔍 Verifying availability before booking...');
+      const verifyResponse = await fetch('http://localhost:3000/meetings/available-times', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          dates: [selectedDate],
+          businessConsultantIds: [selectedConsultant.id],
+          serviceId: selectedService.id
+        })
+      });
+      
+      const currentAvailableTimes = await verifyResponse.json();
+      const availableSlots = currentAvailableTimes[selectedConsultant.id]?.[selectedDate] || [];
+      const isStillAvailable = availableSlots.some((slot: TimeSlot) => 
+        slot.start === selectedTime && slot.businessHourId === selectedBusinessHourId
+      );
+      
+      if (!isStillAvailable) {
+        alert('מצטערים, הזמן שבחרת כבר תפוס. אנא בחר זמן אחר.');
+        // רענון הזמנים הפנויים
+        await handleConsultantSelect(selectedConsultant);
+        return;
+      }
+
       // יצירת פגישה חדשה
       const meetingData = {
         businessHourId: selectedBusinessHourId,
@@ -139,10 +166,46 @@ const BookingPage: React.FC = () => {
       if (response.ok) {
         setStep('success');
       } else {
-        throw new Error('Failed to create meeting');
+        const errorText = await response.text();
+        console.error('Server error:', errorText);
+        
+        // אם השגיאה היא שהזמן כבר תפוס, נרענן את הזמנים הפנויים
+        try {
+          const errorData = JSON.parse(errorText);
+          if (errorData.message && errorData.message.includes('meeting already exists')) {
+            alert('מצטערים, הזמן שבחרת כבר תפוס. הזמנים הפנויים מתעדכנים...');
+            
+            // רענון הזמנים הפנויים עם קבלת נתונים עדכניים מהשרת
+            const dates = getNext7Days();
+            const refreshResponse = await fetch('http://localhost:3000/meetings/available-times', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                dates: dates,
+                businessConsultantIds: [selectedConsultant.id],
+                serviceId: selectedService.id
+              })
+            });
+            
+            const refreshedAvailableTimes = await refreshResponse.json();
+            console.log('🔄 Refreshed available times after conflict:', JSON.stringify(refreshedAvailableTimes, null, 2));
+            
+            // עדכון ה-state עם הזמנים החדשים
+            setAvailableSlots(refreshedAvailableTimes);
+            setStep('times');
+          } else {
+            alert('שגיאה ביצירת הפגישה. אנא נסה שוב.');
+          }
+        } catch (parseError) {
+          console.error('Error parsing error response:', parseError);
+          alert('שגיאה ביצירת הפגישה. אנא נסה שוב.');
+        }
       }
     } catch (error) {
       console.error('Error creating meeting:', error);
+      alert('שגיאה ביצירת הפגישה. אנא נסה שוב.');
     } finally {
       setIsLoading(false);
     }

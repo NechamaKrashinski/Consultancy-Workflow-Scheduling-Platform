@@ -1,12 +1,50 @@
 import React from 'react';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { updateMeeting } from '../../store/slices/meetingsSlice';
-import { Calendar, Clock, User, Mail, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, User, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 
 const MeetingsPage: React.FC = () => {
   const dispatch = useAppDispatch();
   const { meetings, isLoading, error } = useAppSelector((state) => state.meetings);
   const { services } = useAppSelector((state) => state.services);
+
+  // Format date to readable format
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('he-IL', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  // Format time to readable format
+  const formatTime = (timeString: string) => {
+    try {
+      // Handle both full datetime and time-only strings
+      let date;
+      if (timeString.includes('T')) {
+        date = new Date(timeString);
+      } else {
+        // If it's just time, create a date object for today with that time
+        const [hours, minutes] = timeString.split(':');
+        date = new Date();
+        date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      }
+      
+      return date.toLocaleTimeString('he-IL', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+    } catch {
+      return timeString;
+    }
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -86,8 +124,8 @@ const MeetingsPage: React.FC = () => {
                     <div className="flex items-center">
                       <Calendar className="h-4 w-4 mr-2" />
                       <div>
-                        <p className="font-medium text-gray-900">{meeting.date}</p>
-                        <p>{meeting.start_time}</p>
+                        <p className="font-medium text-gray-900">{formatDate(meeting.date)}</p>
+                        <p>{formatTime(meeting.start_time)}</p>
                       </div>
                     </div>
                     <div className="flex items-center">

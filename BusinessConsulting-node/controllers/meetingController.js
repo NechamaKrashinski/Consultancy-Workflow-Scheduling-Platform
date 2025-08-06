@@ -49,9 +49,16 @@ const deleteMeetingController = async (req, res) => {
 
 const getAvailableTimesController = async (req, res) => {
     try {
-        const availableTimes = await getAvailableTimes(req.body.dates, req.body.businessConsultantIds);
+        console.log("🔍 getAvailableTimesController called with:");
+        console.log("Body:", JSON.stringify(req.body, null, 2));
+        console.log("Query:", JSON.stringify(req.query, null, 2));
+        console.log("Params:", JSON.stringify(req.params, null, 2));
+        
+        const availableTimes = await getAvailableTimes(req.body.dates, req.body.businessConsultantIds, req.body.serviceId);
+        console.log("🚀 Returning available times:", JSON.stringify(availableTimes, null, 2));
         res.status(200).json(availableTimes);
     } catch (error) {
+        console.error("❌ Error in getAvailableTimesController:", error.message);
         res.status(400).json({ message: error.message });
     }
 };

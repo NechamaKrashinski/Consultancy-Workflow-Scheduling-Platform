@@ -1,4 +1,5 @@
-const { Meeting, Service, Client, BusinessHours, BusinessConsultant, ConsultantService } = require('../models/associations.js');const { Sequelize, Op } = require('sequelize');
+const { Meeting, Service, Client, BusinessHours, BusinessConsultant, ConsultantService } = require('../models/associations.js');
+const { Sequelize, Op } = require('sequelize');
 
 // פונקציות ניהול פגישות
 const createMeeting = async (businessHourId, serviceId, clientId, date, startTime, endTime, notes = '') => {
@@ -46,90 +47,101 @@ const createMeeting = async (businessHourId, serviceId, clientId, date, startTim
         throw new Error('Business Consultant not found.');
     }
     
-    // 5. קבלת זמני הפגישות הפנויים
-    // const meetings = await getAvailableTimes([date], [consultantId]);
-
-    // // 6. בדוק אם הזמן שביקש הלקוח פנוי
-    // const isSlotAvailable = meetings.some(slot =>
-    //     slot.start_time <= startTime && slot.end_time >= endTime
-    // );
-
-    const meetings = await getAvailableTimes([date], [consultantId]);
-    console.log("Available meetings for consultant:", meetings);
+    // 5. המרת זמנים ותאריכים לפורמט אחיד לבדיקה ושמירה
+    const parseTime = (timeStr) => {
+        if (timeStr instanceof Date) return timeStr;
+        // להמיר ל-Date עם תאריך ברירת מחדל לבדיקות
+        return new Date(`1970-01-01T${timeStr}.000Z`);
+    };
     
-// בדוק אם meetings הוא אובייקט
-  let isSlotAvailable = true; // הנח שהזמן פנוי בהתחלה
+    const parseTimeForSave = (timeStr) => {
+        // להמיר לפורמט TIME של MSSQL (רק שעה ללא תאריך)
+        if (timeStr instanceof Date) {
+            return timeStr.toISOString().substr(11, 8); // "HH:MM:SS"
+        }
+        return timeStr; // אם זה כבר string, החזר כמו שזה
+    };
+    
+    const parseDate = (dateStr) => {
+        if (dateStr instanceof Date) return dateStr;
+        return new Date(dateStr);
+    };
+    
+    // לבדיקות - Date objects
+    const startTimeDate = parseTime(startTime);
+    const endTimeDate = parseTime(endTime);
+    const meetingDate = parseDate(date);
+    
+    // לשמירה - string format
+    const startTimeString = parseTimeForSave(startTime);
+    const endTimeString = parseTimeForSave(endTime);
+    
+    console.log("Parsed for checks - Start:", startTimeDate, "End:", endTimeDate, "Date:", meetingDate);
+    console.log("Parsed for save - Start:", startTimeString, "End:", endTimeString);
+    
+    // 6. בדיקה ישירה במסד נתונים - הגנה נגד duplicates
+    const existingMeeting = await Meeting.findOne({
+        where: {
+            business_hour_id: businessHourId,
+            date: meetingDate,
+            start_time: startTimeDate,
+            end_time: endTimeDate,
+            status: ['booked', 'confirmed']
+        }
+    });
 
-// if (meetings && meetings[consultantId] && meetings[consultantId][date]) {
-//     const availableSlots = meetings[consultantId][date];
-//     isSlotAvailable = availableSlots.every(slot =>
-//     (endTime <= slot.start || startTime >= slot.end));
+    if (existingMeeting) {
+        throw new Error('A meeting already exists at this exact time slot.');
+    }
 
+    // 7. בדיקה נוספת לחפיפות זמן - לוגיקה מתוקנת
+    const overlappingMeetings = await Meeting.findAll({
+        where: {
+            business_hour_id: businessHourId,
+            date: meetingDate,
+            status: ['booked', 'confirmed'],
+            [Op.or]: [
+                {
+                    // מקרה 1: הפגישה הקיימת מתחילה לפני או בזמן תחילת הפגישה החדשה
+                    // ומסתיימת אחרי תחילת הפגישה החדשה
+                    start_time: { [Op.lte]: startTimeDate },
+                    end_time: { [Op.gt]: startTimeDate }
+                },
+                {
+                    // מקרה 2: הפגישה הקיימת מתחילה לפני סיום הפגישה החדשה
+                    // ומסתיימת אחרי או בזמן סיום הפגישה החדשה
+                    start_time: { [Op.lt]: endTimeDate },
+                    end_time: { [Op.gte]: endTimeDate }
+                },
+                {
+                    // מקרה 3: הפגישה הקיימת מתחילה אחרי תחילת הפגישה החדשה
+                    // ומסתיימת לפני סיום הפגישה החדשה (הפגישה החדשה מכסה את הקיימת)
+                    start_time: { [Op.gte]: startTimeDate },
+                    end_time: { [Op.lte]: endTimeDate }
+                }
+            ]
+        }
+    });
 
-//     console.log("Is the requested time slot available?", isSlotAvailable);
-// } else {
-//     console.error("No available meetings found for the specified consultant and date:", meetings);
-//     isSlotAvailable = false; // אם אין פגישות זמינות, הנח שהזמן לא פנוי
-// }
-if (!meetings) {
-    console.error("Meetings object is undefined or null.");
-    isSlotAvailable = false;
-    console.log("isSlotAvailable:", isSlotAvailable);
-}
+    if (overlappingMeetings.length > 0) {
+        console.log("Overlapping meetings found:", overlappingMeetings.map(m => ({
+            id: m.id,
+            date: m.date,
+            start_time: m.start_time,
+            end_time: m.end_time,
+            status: m.status
+        })));
+        throw new Error(`This time slot conflicts with an existing meeting. Found ${overlappingMeetings.length} conflicting meeting(s).`);
+    }
 
-if (!meetings[consultantId]) {
-    console.error("No meetings found for consultant ID:", consultantId);
-    isSlotAvailable = false;
-    console.log("isSlotAvailable:", isSlotAvailable);
-}
-
-if (!meetings[consultantId][date]) {
-    console.error("No meetings found for the specified date:", date);
-    isSlotAvailable = false;
-    console.log("isSlotAvailable:", isSlotAvailable);
-}
-
-if (!meetings[consultantId][date].length) {
-    console.error("No available slots found for the specified date:", date);
-    isSlotAvailable = false;
-    console.log("isSlotAvailable:", isSlotAvailable);
-}
-
-if (meetings && meetings[consultantId] && meetings[consultantId][date] && meetings[consultantId][date].length > 0) {
-    const availableSlots = meetings[consultantId][date];
-    console.log("Available slots:", availableSlots);
-     
-   const formattedStartTime = startTime + ":00"; // הוספת שניות
-const formattedEndTime = endTime + ":00"; // הוספת שניות
-
-isSlotAvailable = availableSlots.every(slot => {
-    const isAvailable = (formattedStartTime >= slot.start && formattedEndTime <= slot.end);
-    console.log(`Checking slot: ${JSON.stringify(slot)} - Is available: ${isAvailable}  end: ${formattedEndTime} start: ${formattedStartTime}`);
-    return isAvailable;
-});
-
-console.log("Is the requested time slot available?", isSlotAvailable);
-
-
-    console.log("Is the requested time slot available?", isSlotAvailable);
-} else {
-    console.error("No available meetings found for the specified consultant and date:", meetings);
-    isSlotAvailable = false; // אם אין פגישות זמינות, הנח שהזמן לא פנוי
-}
-
-if (!isSlotAvailable) {
-    throw new Error('The selected time slot is not available.');
-}
-
-
-    // 7. יצירת הפגישה
+    // 8. יצירת הפגישה
     const meeting = await Meeting.create({
         business_hour_id: businessHourId,
         client_id: clientId,
         service_id: serviceId,
-        date: date,
-        start_time: startTime,
-        end_time: endTime,
+        date: meetingDate,
+        start_time: startTimeString,
+        end_time: endTimeString,
         status: 'booked',
         notes: notes,
     });
@@ -301,48 +313,104 @@ const getBookedMeetings = async (formattedDate, businessHours) => {
 //     return availableTimes.filter(time => time.start < time.end);
 // };
 
-const calculateAvailableTimes = (businessHours, bookedTimes) => {
+const calculateAvailableTimes = (businessHours, bookedTimes, serviceDurationMinutes = 30) => {
     const availableTimes = [];
     console.log("Calculating available times based on business hours and booked times");
     console.log("Business hours:", businessHours);
     console.log("Booked times:", bookedTimes);
-    businessHours.forEach(hour => {
-        let currentStart = hour.start_time;
-        console.log(`Processing business hour: ${hour.start_time} to ${hour.end_time}`);
-        
-        for (let i = 0; i < bookedTimes.length; i++) {
-            const booked = bookedTimes[i];
-            if (booked.start >= hour.end_time) break;
+    console.log("Service duration:", serviceDurationMinutes, "minutes");
+    
+    // פונקציה להמרת זמן מ-string ל-minutes מתחילת היום
+    const timeToMinutes = (timeString) => {
+        // אם זה Date object, נוציא רק את החלק של השעה
+        if (timeString instanceof Date) {
+            const hours = timeString.getHours();
+            const minutes = timeString.getMinutes();
+            return hours * 60 + minutes;
+        }
+        // אם זה string, נפרק כרגיל
+        const [hours, minutes] = timeString.split(':').map(Number);
+        return hours * 60 + minutes;
+    };
+    
+    // פונקציה להמרת minutes בחזרה ל-string
+    const minutesToTime = (minutes) => {
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+    };
 
-            if (booked.start > currentStart) {
-                availableTimes.push({
-                    start: currentStart,
-                    end: booked.start,
-                    businessHourId: hour.id
+    businessHours.forEach(hour => {
+        const startMinutes = timeToMinutes(hour.start_time);
+        const endMinutes = timeToMinutes(hour.end_time);
+        
+        console.log(`Processing business hour: ${hour.start_time} to ${hour.end_time} (${startMinutes}-${endMinutes} minutes)`);
+        
+        // יצירת רשימה של כל הזמנים התפוסים באותה שעת עבודה
+        const occupiedSlots = [];
+        bookedTimes.forEach(booked => {
+            const bookedStart = timeToMinutes(booked.start);
+            const bookedEnd = timeToMinutes(booked.end);
+            
+            // אם הפגישה התפוסה נמצאת בטווח שעות העבודה
+            if (bookedStart < endMinutes && bookedEnd > startMinutes) {
+                occupiedSlots.push({
+                    start: Math.max(bookedStart, startMinutes),
+                    end: Math.min(bookedEnd, endMinutes)
                 });
             }
-
-            currentStart = Math.max(currentStart, booked.end);
+        });
+        
+        // מיון הזמנים התפוסים
+        occupiedSlots.sort((a, b) => a.start - b.start);
+        
+        // יצירת זמנים פנויים
+        let currentMinutes = startMinutes;
+        
+        for (const occupied of occupiedSlots) {
+            // יצירת slots פנויים לפני הזמן התפוס
+            while (currentMinutes + serviceDurationMinutes <= occupied.start) {
+                availableTimes.push({
+                    start: minutesToTime(currentMinutes),
+                    end: minutesToTime(currentMinutes + serviceDurationMinutes),
+                    businessHourId: hour.id
+                });
+                currentMinutes += serviceDurationMinutes;
+            }
+            currentMinutes = Math.max(currentMinutes, occupied.end);
         }
-
-        if (currentStart < hour.end_time) {
+        
+        // יצירת slots פנויים אחרי כל הזמנים התפוסים
+        while (currentMinutes + serviceDurationMinutes <= endMinutes) {
             availableTimes.push({
-                start: currentStart,
-                end: hour.end_time,
+                start: minutesToTime(currentMinutes),
+                end: minutesToTime(currentMinutes + serviceDurationMinutes),
                 businessHourId: hour.id
             });
+            currentMinutes += serviceDurationMinutes;
         }
     });
 
-    return availableTimes.filter(time => time.start < time.end);
+    console.log("Generated available time slots:", availableTimes);
+    return availableTimes;
 };
 
 
-const getAvailableTimes = async (dates, businessConsultantIds) => {
-    console.log("Getting available times for dates:", dates, "and businessConsultantIds:", businessConsultantIds);
+const getAvailableTimes = async (dates, businessConsultantIds, serviceId) => {
+    console.log("Getting available times for dates:", dates, "and businessConsultantIds:", businessConsultantIds, "serviceId:", serviceId);
     
     if (!dates || !businessConsultantIds || !Array.isArray(dates) || !Array.isArray(businessConsultantIds)) {
         throw new Error('Invalid input: dates and businessConsultantIds must be non-null arrays');
+    }
+
+    // קבלת פרטי השירות כדי לדעת את משך הזמן
+    let serviceDuration = 30; // ברירת מחדל 30 דקות
+    if (serviceId) {
+        const service = await Service.findByPk(serviceId);
+        if (service) {
+            serviceDuration = service.duration;
+            console.log("Service duration:", serviceDuration, "minutes");
+        }
     }
 
     const availableTimesByConsultant = {};
@@ -363,7 +431,7 @@ const getAvailableTimes = async (dates, businessConsultantIds) => {
                 end: meeting.end_time
             }));
             console.log(`Booked times for ${formattedDate}:`, bookedTimes);
-            const availableTimes = calculateAvailableTimes(businessHours, bookedTimes);
+            const availableTimes = calculateAvailableTimes(businessHours, bookedTimes, serviceDuration);
             console.log(`Available times for ${formattedDate}:`, availableTimes);
             availableTimesByConsultant[businessConsultantId][formattedDate] = availableTimes;
 

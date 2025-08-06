@@ -14,6 +14,7 @@ interface Consultant {
 interface TimeSlot {
   start: string;
   end: string;
+  businessHourId: number;
 }
 
 interface AvailableSlots {
@@ -73,11 +74,16 @@ const BookingPage: React.FC = () => {
         },
         body: JSON.stringify({
           dates: dates,
-          businessConsultantIds: [consultant.id]
+          businessConsultantIds: [consultant.id],
+          serviceId: selectedService.id
         })
       });
       
       const availableTimes = await response.json();
+      console.log('🔍 Available times received from server:', JSON.stringify(availableTimes, null, 2));
+      console.log('🔍 Consultant ID:', consultant.id);
+      console.log('🔍 Available slots structure:', Object.keys(availableTimes));
+      
       setAvailableSlots(availableTimes);
       setStep('times');
     } catch (error) {
@@ -105,14 +111,14 @@ const BookingPage: React.FC = () => {
   };
 
   const handleConfirmBooking = async () => {
-    if (!selectedService || !selectedConsultant || !selectedDate || !selectedTime) return;
+    if (!selectedService || !selectedConsultant || !selectedDate || !selectedTime || !selectedBusinessHourId) return;
 
     setIsLoading(true);
     
     try {
       // יצירת פגישה חדשה
       const meetingData = {
-        businessHourId: 1, // צריך לקבל את ה-ID הנכון מהזמנים הפנויים
+        businessHourId: selectedBusinessHourId,
         serviceId: selectedService.id,
         clientId: user?.id,
         date: selectedDate,
@@ -155,6 +161,7 @@ const BookingPage: React.FC = () => {
     setSelectedConsultant(null);
     setSelectedDate('');
     setSelectedTime('');
+    setSelectedBusinessHourId(null);
     setNotes('');
     setConsultants([]);
     setAvailableSlots({});
@@ -280,7 +287,18 @@ const BookingPage: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {Object.entries(availableSlots[selectedConsultant?.id || ''] || {}).map(([date, slots]) => (
+                {(() => {
+                  const consultantSlots = availableSlots[selectedConsultant?.id || ''] || {};
+                  console.log('🔍 Consultant slots for display:', consultantSlots);
+                  console.log('🔍 Selected consultant ID:', selectedConsultant?.id);
+                  console.log('🔍 Available slots keys:', Object.keys(availableSlots));
+                  
+                  const slotsWithTimes = Object.entries(consultantSlots)
+                    .filter(([, slots]) => slots && slots.length > 0);
+                  
+                  console.log('🔍 Filtered slots with times:', slotsWithTimes);
+                  
+                  return slotsWithTimes.map(([date, slots]) => (
                   <div key={date} className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">
                       {new Date(date).toLocaleDateString('he-IL', { 
@@ -294,7 +312,7 @@ const BookingPage: React.FC = () => {
                       {slots.map((slot, index) => (
                         <button
                           key={index}
-                          onClick={() => handleTimeSelect(date, slot.start)}
+                          onClick={() => handleTimeSelect(date, slot.start, slot.businessHourId)}
                           className="px-4 py-2 bg-blue-100 text-blue-800 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium"
                         >
                           {slot.start}
@@ -302,7 +320,15 @@ const BookingPage: React.FC = () => {
                       ))}
                     </div>
                   </div>
-                ))}
+                  ));
+                })()}
+                
+                {/* הודעה אם אין זמנים פנויים */}
+                {Object.keys(availableSlots[selectedConsultant?.id || ''] || {}).length === 0 && (
+                  <div className="text-center py-8">
+                    <p className="text-gray-600">No available times found for this consultant.</p>
+                  </div>
+                )}
               </div>
             )}
           </div>

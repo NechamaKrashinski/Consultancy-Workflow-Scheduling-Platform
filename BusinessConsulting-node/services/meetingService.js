@@ -84,8 +84,8 @@ const createMeeting = async (businessHourId, serviceId, clientId, date, startTim
         where: {
             business_hour_id: businessHourId,
             date: meetingDate,
-            start_time: startTimeForComparison,
-            end_time: endTimeForComparison,
+            start_time: startTimeString,  // השוואה עם string
+            end_time: endTimeString,      // השוואה עם string
             status: ['booked', 'confirmed']
         }
     });
@@ -94,7 +94,7 @@ const createMeeting = async (businessHourId, serviceId, clientId, date, startTim
         throw new Error('A meeting already exists at this exact time slot.');
     }
 
-    // 7. בדיקה נוספת לחפיפות זמן - לוגיקה מתוקנת
+    // 7. בדיקה נוספת לחפיפות זמן - לוגיקה מתוקנת עם strings
     const overlappingMeetings = await Meeting.findAll({
         where: {
             business_hour_id: businessHourId,
@@ -104,20 +104,20 @@ const createMeeting = async (businessHourId, serviceId, clientId, date, startTim
                 {
                     // מקרה 1: הפגישה הקיימת מתחילה לפני או בזמן תחילת הפגישה החדשה
                     // ומסתיימת אחרי תחילת הפגישה החדשה
-                    start_time: { [Op.lte]: startTimeForComparison },
-                    end_time: { [Op.gt]: startTimeForComparison }
+                    start_time: { [Op.lte]: startTimeString },
+                    end_time: { [Op.gt]: startTimeString }
                 },
                 {
                     // מקרה 2: הפגישה הקיימת מתחילה לפני סיום הפגישה החדשה
                     // ומסתיימת אחרי או בזמן סיום הפגישה החדשה
-                    start_time: { [Op.lt]: endTimeForComparison },
-                    end_time: { [Op.gte]: endTimeForComparison }
+                    start_time: { [Op.lt]: endTimeString },
+                    end_time: { [Op.gte]: endTimeString }
                 },
                 {
                     // מקרה 3: הפגישה הקיימת מתחילה אחרי תחילת הפגישה החדשה
                     // ומסתיימת לפני סיום הפגישה החדשה (הפגישה החדשה מכסה את הקיימת)
-                    start_time: { [Op.gte]: startTimeForComparison },
-                    end_time: { [Op.lte]: endTimeForComparison }
+                    start_time: { [Op.gte]: startTimeString },
+                    end_time: { [Op.lte]: endTimeString }
                 }
             ]
         }
@@ -140,8 +140,8 @@ const createMeeting = async (businessHourId, serviceId, clientId, date, startTim
         client_id: clientId,
         service_id: serviceId,
         date: meetingDate,
-        start_time: startTimeString,
-        end_time: endTimeString,
+        start_time: startTimeString,  // שמירה כ-string
+        end_time: endTimeString,      // שמירה כ-string
         status: 'booked',
         notes: notes,
     });
@@ -272,13 +272,26 @@ const getBusinessHours = async (businessConsultantId, formattedDate) => {
 
 
 const getBookedMeetings = async (formattedDate, businessHours) => {
-    return await Meeting.findAll({
+    console.log('🔍 Checking booked meetings for date:', formattedDate);
+    console.log('🔍 Business hours to check:', businessHours.map(h => h.id));
+    
+    const bookedMeetings = await Meeting.findAll({
         where: {
             date: formattedDate,
             business_hour_id: businessHours.map(hour => hour.id),
             status: ['booked', 'confirmed']
         }
     });
+    
+    console.log('🔍 Found booked meetings:', bookedMeetings.map(m => ({
+        id: m.id,
+        business_hour_id: m.business_hour_id,
+        start_time: m.start_time,
+        end_time: m.end_time,
+        status: m.status
+    })));
+    
+    return bookedMeetings;
 };
 
 // const calculateAvailableTimes = (businessHours, bookedTimes) => {
@@ -315,21 +328,22 @@ const getBookedMeetings = async (formattedDate, businessHours) => {
 
 const calculateAvailableTimes = (businessHours, bookedTimes, serviceDurationMinutes = 30) => {
     const availableTimes = [];
-    console.log("Calculating available times based on business hours and booked times");
-    console.log("Business hours:", businessHours);
-    console.log("Booked times:", bookedTimes);
-    console.log("Service duration:", serviceDurationMinutes, "minutes");
+    console.log("📅 Calculating available times based on business hours and booked times");
+    console.log("🏢 Business hours:", businessHours);
+    console.log("📝 Booked times:", bookedTimes);
+    console.log("⏱️ Service duration:", serviceDurationMinutes, "minutes");
     
     // פונקציה להמרת זמן מ-string ל-minutes מתחילת היום
     const timeToMinutes = (timeString) => {
         // אם זה Date object, נוציא רק את החלק של השעה
         if (timeString instanceof Date) {
-            const hours = timeString.getHours();
-            const minutes = timeString.getMinutes();
+            const hours = timeString.getUTCHours();
+            const minutes = timeString.getUTCMinutes();
             return hours * 60 + minutes;
         }
         // אם זה string, נפרק כרגיל
-        const [hours, minutes] = timeString.split(':').map(Number);
+        const timeStr = timeString.toString().split('T')[1] || timeString.toString();
+        const [hours, minutes] = timeStr.split(':').map(Number);
         return hours * 60 + minutes;
     };
     
@@ -344,7 +358,7 @@ const calculateAvailableTimes = (businessHours, bookedTimes, serviceDurationMinu
         const startMinutes = timeToMinutes(hour.start_time);
         const endMinutes = timeToMinutes(hour.end_time);
         
-        console.log(`Processing business hour: ${hour.start_time} to ${hour.end_time} (${startMinutes}-${endMinutes} minutes)`);
+        console.log(`🔍 Processing business hour: ${hour.start_time} to ${hour.end_time} (${startMinutes}-${endMinutes} minutes)`);
         
         // יצירת רשימה של כל הזמנים התפוסים באותה שעת עבודה
         const occupiedSlots = [];
@@ -352,17 +366,21 @@ const calculateAvailableTimes = (businessHours, bookedTimes, serviceDurationMinu
             const bookedStart = timeToMinutes(booked.start);
             const bookedEnd = timeToMinutes(booked.end);
             
+            console.log(`🚫 Checking booked slot: ${booked.start} to ${booked.end} (${bookedStart}-${bookedEnd} minutes)`);
+            
             // אם הפגישה התפוסה נמצאת בטווח שעות העבודה
             if (bookedStart < endMinutes && bookedEnd > startMinutes) {
                 occupiedSlots.push({
                     start: Math.max(bookedStart, startMinutes),
                     end: Math.min(bookedEnd, endMinutes)
                 });
+                console.log(`❌ Added occupied slot: ${Math.max(bookedStart, startMinutes)}-${Math.min(bookedEnd, endMinutes)}`);
             }
         });
         
         // מיון הזמנים התפוסים
         occupiedSlots.sort((a, b) => a.start - b.start);
+        console.log(`📋 Sorted occupied slots:`, occupiedSlots);
         
         // יצירת זמנים פנויים
         let currentMinutes = startMinutes;
@@ -375,6 +393,7 @@ const calculateAvailableTimes = (businessHours, bookedTimes, serviceDurationMinu
                     end: minutesToTime(currentMinutes + serviceDurationMinutes),
                     businessHourId: hour.id
                 });
+                console.log(`✅ Available slot: ${minutesToTime(currentMinutes)} - ${minutesToTime(currentMinutes + serviceDurationMinutes)}`);
                 currentMinutes += serviceDurationMinutes;
             }
             currentMinutes = Math.max(currentMinutes, occupied.end);
@@ -387,11 +406,12 @@ const calculateAvailableTimes = (businessHours, bookedTimes, serviceDurationMinu
                 end: minutesToTime(currentMinutes + serviceDurationMinutes),
                 businessHourId: hour.id
             });
+            console.log(`✅ Available slot after occupied: ${minutesToTime(currentMinutes)} - ${minutesToTime(currentMinutes + serviceDurationMinutes)}`);
             currentMinutes += serviceDurationMinutes;
         }
     });
 
-    console.log("Generated available time slots:", availableTimes);
+    console.log("🎯 Final available time slots:", availableTimes);
     return availableTimes;
 };
 

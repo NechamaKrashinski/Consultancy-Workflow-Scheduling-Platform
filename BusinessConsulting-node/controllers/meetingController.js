@@ -95,11 +95,17 @@ const getAvailableTimesController = async (req, res) => {
 
 const getConsultantsByServiceController = async (req, res) => {
     try {
+        console.log('🔍 getConsultantsByServiceController called');
+        console.log('- Service ID:', req.params.serviceId);
+        console.log('- User from token:', req.client);
+        
         const consultants = await getConsultantsByService(req.params.serviceId);
+        console.log('✅ Found consultants:', consultants.length);
         res.status(200).json(consultants);
     } catch (error) {
-        console.error(error + "------------------------ in getConsultantsByServiceController");
-        res.status(400).json({ message: error.message });
+        console.error("❌ Error in getConsultantsByServiceController:", error.message);
+        // במקרה של שגיאה, נחזיר array ריק במקום שגיאה כדי שה-map לא יקרוס
+        res.status(200).json([]);
     }
 };
 

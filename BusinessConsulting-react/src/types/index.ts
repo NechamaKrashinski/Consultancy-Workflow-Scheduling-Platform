@@ -124,9 +124,12 @@ export interface RegisterData {
   phone: string;
 }
 export interface CreateMeetingData {
-  serviceId: string;
+  businessHourId: number;
+  serviceId: number;
+  clientId: number;
   date: string;
-  time: string;
+  startTime: string;
+  endTime: string;
   notes?: string;
 }
 
@@ -163,4 +166,16 @@ export interface BusinessConsultantState {
   consultants: BusinessConsultant[];
   isLoading: boolean;
   error: string | null;
+}
+
+export interface TimeSlot {
+  start: string;
+  end: string;
+  businessHourId: number;
+}
+
+export interface AvailableSlots {
+  [consultantId: string]: {
+    [date: string]: TimeSlot[];
+  };
 }

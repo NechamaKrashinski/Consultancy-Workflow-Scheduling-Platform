@@ -8,16 +8,22 @@ import { MeetingStatus, TabId } from '../../types';
 import { LogOut, BarChart3, Calendar, Settings, Users } from 'lucide-react';
 import ServicesPage from './ServicesPage';
 import MeetingsPage from './MeetingsPage';
-import ConsultantLinking from './ConsultantService'; // ייבוא הקומפוננטה החדשה
+import ConsultantLinking from './ConsultantService';
+import LoadingSpinner from '../../components/LoadingSpinner';
+import ConfirmationDialog from '../../components/ConfirmationDialog';
+import { useToast } from '../../components/ToastProvider';
 
 const ManagerDashboard: React.FC = () => {
+  const { showSuccess } = useToast();
   const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((state) => state.auth);
-  const { services, error: servicesError } = useAppSelector((state) => state.services);
-  const { meetings, error: meetingsError } = useAppSelector((state) => state.meetings);
-  const { consultants, error: consultantsError } = useAppSelector((state) => state.consultants);
+  const { services, error: servicesError, isLoading: servicesLoading } = useAppSelector((state) => state.services);
+  const { meetings, error: meetingsError, isLoading: meetingsLoading } = useAppSelector((state) => state.meetings);
+  const { consultants, error: consultantsError, isLoading: consultantsLoading } = useAppSelector((state) => state.consultants);
 
   useEffect(() => {
     dispatch(fetchServices());
@@ -35,31 +41,55 @@ const ManagerDashboard: React.FC = () => {
   );
 
   const handleLogout = () => {
-    dispatch(logout());
+    setShowLogoutDialog(true);
   };
+
+  const confirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await dispatch(logout()).unwrap();
+      showSuccess(
+        'התנתקות בוצעה',
+        'התנתקת בהצלחה מהמערכת'
+      );
+    } catch (_error) {
+      // אם יש שגיאה, עדיין נתנתק כי זה logout
+      dispatch(logout());
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutDialog(false);
+    }
+  };
+
+  const cancelLogout = () => {
+    setShowLogoutDialog(false);
+  };
+
+  // מצב טעינה כללי
+  const isDataLoading = servicesLoading || meetingsLoading || consultantsLoading;
 
   const stats = [
     {
       name: 'Total Services',
-      value: services.length,
+      value: servicesLoading ? '...' : services.length,
       icon: Settings,
       color: 'bg-blue-500'
     },
     {
       name: 'Active Meetings',
-      value: activeMeetingsCount,
+      value: meetingsLoading ? '...' : activeMeetingsCount,
       icon: Calendar,
       color: 'bg-emerald-500'
     },
     {
       name: 'Pending Approvals',
-      value: pendingApprovalsCount,
+      value: meetingsLoading ? '...' : pendingApprovalsCount,
       icon: Users,
       color: 'bg-amber-500'
     },
     {
       name: 'Total Consultants',
-      value: consultants.length, // עדכון למספר הקונסולטנטים
+      value: consultantsLoading ? '...' : consultants.length,
       icon: Users,
       color: 'bg-purple-500'
     },
@@ -143,6 +173,14 @@ const ManagerDashboard: React.FC = () => {
         {/* Overview Tab */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
+            {isDataLoading && (
+              <LoadingSpinner 
+                size="lg" 
+                color="blue" 
+                text="טוען נתוני דשבורד..." 
+              />
+            )}
+            
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {stats.map((stat) => {
@@ -198,8 +236,21 @@ const ManagerDashboard: React.FC = () => {
         {activeTab === 'meetings' && <MeetingsPage />}
 
         {/* Consultant Linking Tab */}
-        {activeTab === 'consultant-linking' && <ConsultantLinking />} {/* הוספת הקומפוננטה החדשה */}
+        {activeTab === 'consultant-linking' && <ConsultantLinking />}
       </div>
+
+      {/* Logout Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={showLogoutDialog}
+        onClose={cancelLogout}
+        onConfirm={confirmLogout}
+        title="התנתקות מהמערכת"
+        message="האם אתה בטוח שברצונך להתנתק מהמערכת?"
+        confirmText="התנתק"
+        cancelText="ביטול"
+        type="warning"
+        isLoading={isLoggingOut}
+      />
     </div>
   );
 };

@@ -1,9 +1,28 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { updateMeeting } from '../../store/slices/meetingsSlice';
 import { Calendar, Clock, User, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import ConfirmationDialog from '../../components/ConfirmationDialog';
+import LoadingButton from '../../components/LoadingButton';
+import { useToast } from '../../components/ToastProvider';
 
 const MeetingsPage: React.FC = () => {
+  const { showSuccess, showError } = useToast();
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    meetingId: string;
+    action: string;
+    title: string;
+    message: string;
+  }>({
+    isOpen: false,
+    meetingId: '',
+    action: '',
+    title: '',
+    message: ''
+  });
+  const [isUpdating, setIsUpdating] = useState<string | null>(null);
+
   const dispatch = useAppDispatch();
   const { meetings, isLoading, error } = useAppSelector((state) => state.meetings);
   const { services } = useAppSelector((state) => state.services);
@@ -73,10 +92,66 @@ const MeetingsPage: React.FC = () => {
   };
 
   const handleStatusChange = (meetingId: string, newStatus: string) => {
-    dispatch(updateMeeting({
-      id: meetingId,
-      data: { status: newStatus as any }
-    }));
+    const meeting = meetings.find(m => m.id.toString() === meetingId);
+    if (!meeting) return;
+
+    // פעולות שדורשות אישור
+    if (newStatus === 'cancelled') {
+      setConfirmDialog({
+        isOpen: true,
+        meetingId,
+        action: newStatus,
+        title: 'ביטול פגישה',
+        message: 'האם אתה בטוח שברצונך לבטל את הפגישה? פעולה זו לא ניתנת לביטול.'
+      });
+      return;
+    }
+
+    // פעולות רגילות ללא אישור
+    performStatusUpdate(meetingId, newStatus);
+  };
+
+  const performStatusUpdate = async (meetingId: string, newStatus: string) => {
+    try {
+      setIsUpdating(meetingId);
+      await dispatch(updateMeeting({
+        id: meetingId,
+        data: { status: newStatus as 'confirmed' | 'pending' | 'cancelled' | 'completed' }
+      })).unwrap();
+      
+      showSuccess(
+        'הפגישה עודכנה',
+        'סטטוס הפגישה עודכן בהצלחה'
+      );
+    } catch (_error) {
+      showError(
+        'שגיאה בעדכון',
+        'אירעה שגיאה בעדכון הפגישה. אנא נסה שוב.'
+      );
+    } finally {
+      setIsUpdating(null);
+    }
+  };
+
+  const handleConfirmAction = () => {
+    performStatusUpdate(confirmDialog.meetingId, confirmDialog.action);
+    setConfirmDialog({
+      isOpen: false,
+      meetingId: '',
+      action: '',
+      title: '',
+      message: ''
+    });
+  };
+
+  const handleCancelAction = () => {
+    setConfirmDialog({
+      isOpen: false,
+      meetingId: '',
+      action: '',
+      title: '',
+      message: ''
+    });
   };
 
   return (
@@ -149,38 +224,42 @@ const MeetingsPage: React.FC = () => {
                 <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 lg:ml-6">
                   {meeting.status === 'pending' && (
                     <>
-                      <button
+                      <LoadingButton
                         onClick={() => handleStatusChange(meeting.id.toString(), 'confirmed')}
-                        disabled={isLoading}
-                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium disabled:opacity-50"
+                        isLoading={isUpdating === meeting.id.toString()}
+                        variant="success"
+                        size="sm"
                       >
-                        Confirm
-                      </button>
-                      <button
+                        אישור
+                      </LoadingButton>
+                      <LoadingButton
                         onClick={() => handleStatusChange(meeting.id.toString(), 'cancelled')}
-                        disabled={isLoading}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium disabled:opacity-50"
+                        isLoading={isUpdating === meeting.id.toString()}
+                        variant="danger"
+                        size="sm"
                       >
-                        Cancel
-                      </button>
+                        ביטול
+                      </LoadingButton>
                     </>
                   )}
                   {meeting.status === 'confirmed' && (
                     <>
-                      <button
+                      <LoadingButton
                         onClick={() => handleStatusChange(meeting.id.toString(), 'completed')}
-                        disabled={isLoading}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-50"
+                        isLoading={isUpdating === meeting.id.toString()}
+                        variant="primary"
+                        size="sm"
                       >
-                        Mark Complete
-                      </button>
-                      <button
+                        סיום
+                      </LoadingButton>
+                      <LoadingButton
                         onClick={() => handleStatusChange(meeting.id.toString(), 'cancelled')}
-                        disabled={isLoading}
-                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium disabled:opacity-50"
+                        isLoading={isUpdating === meeting.id.toString()}
+                        variant="secondary"
+                        size="sm"
                       >
-                        Cancel
-                      </button>
+                        ביטול
+                      </LoadingButton>
                     </>
                   )}
                 </div>
@@ -205,6 +284,19 @@ const MeetingsPage: React.FC = () => {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       )}
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={handleCancelAction}
+        onConfirm={handleConfirmAction}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmText="אישור"
+        cancelText="ביטול"
+        type="danger"
+        isLoading={isUpdating !== null}
+      />
     </div>
   );
 };

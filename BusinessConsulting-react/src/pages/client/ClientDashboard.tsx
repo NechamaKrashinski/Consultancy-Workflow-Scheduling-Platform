@@ -5,9 +5,14 @@ import { fetchClientMeetings } from '../../store/slices/meetingsSlice';
 import { logout } from '../../store/slices/authSlice';
 import { LogOut, Calendar, Clock, CheckCircle, XCircle, AlertCircle, DollarSign, User, ArrowLeft } from 'lucide-react';
 import { Service, BusinessConsultant } from '../../types';
+import { meetingsAPI } from '../../services/api';
+import { useToast } from '../../components/ToastProvider';
+import ConfirmationDialog from '../../components/ConfirmationDialog';
 
 const ClientDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'book-meeting' | 'my-meetings'>('book-meeting');
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   
   // Booking states
   const [step, setStep] = useState<'services' | 'consultants' | 'times' | 'confirm' | 'success'>('services');
@@ -25,6 +30,7 @@ const ClientDashboard: React.FC = () => {
   const { user } = useAppSelector((state) => state.auth);
   const { services } = useAppSelector((state) => state.services);
   const { meetings, isLoading, error } = useAppSelector((state) => state.meetings);
+  const { showSuccess, showError, showWarning } = useToast();
 
   useEffect(() => {
     dispatch(fetchServices());
@@ -34,7 +40,28 @@ const ClientDashboard: React.FC = () => {
   }, [dispatch, activeTab]);
 
   const handleLogout = () => {
-    dispatch(logout());
+    setShowLogoutDialog(true);
+  };
+
+  const confirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await dispatch(logout()).unwrap();
+      showSuccess(
+        'התנתקות בוצעה',
+        'התנתקת בהצלחה מהמערכת'
+      );
+    } catch (_error) {
+      // אם יש שגיאה, עדיין נתנתק כי זה logout
+      dispatch(logout());
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutDialog(false);
+    }
+  };
+
+  const cancelLogout = () => {
+    setShowLogoutDialog(false);
   };
 
   // Booking functions
@@ -43,12 +70,32 @@ const ClientDashboard: React.FC = () => {
     setIsBookingLoading(true);
     
     try {
-      const response = await fetch(`http://localhost:3000/meetings/consultants/${service.id}`);
-      const consultantsData = await response.json();
+      const consultantsData = await meetingsAPI.getConsultantsByService(service.id.toString());
       setConsultants(consultantsData);
       setStep('consultants');
     } catch (error) {
-      console.error('Error fetching consultants:', error);
+      console.error('❌ Error fetching consultants:', error);
+      
+      // Type guard לבדיקת axios error
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: unknown; status?: number } };
+        console.error('Error details:', axiosError.response?.data);
+        console.error('Error status:', axiosError.response?.status);
+        
+        // נראה הודעה ברורה למשתמש
+        if (axiosError.response?.status === 401) {
+          showError('נדרשת התחברות מחדש', 'אנא התחבר מחדש למערכת');
+        } else if (axiosError.response?.status === 403) {
+          showError('אין הרשאה', 'אין לך הרשאה לצפות ביועצים');
+        } else {
+          showError('שגיאה בטעינת יועצים', 'אנא נסה שוב מאוחר יותר');
+        }
+      } else {
+        showError('שגיאה בטעינת יועצים', 'אנא נסה שוב מאוחר יותר');
+      }
+      
+      // במקרה של שגיאה, נגדיר array ריק כדי שה-map לא יקרוס
+      setConsultants([]);
     } finally {
       setIsBookingLoading(false);
     }
@@ -62,19 +109,7 @@ const ClientDashboard: React.FC = () => {
 
     try {
       const dates = getNext7Days();
-      const response = await fetch('http://localhost:3000/meetings/available-times', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          dates: dates,
-          businessConsultantIds: [consultant.id],
-          serviceId: selectedService.id
-        })
-      });
-      
-      const availableTimes = await response.json();
+      const availableTimes = await meetingsAPI.getAvailableTimes(dates, [consultant.id]);
       setAvailableSlots(availableTimes);
       setStep('times');
     } catch (error) {
@@ -86,7 +121,7 @@ const ClientDashboard: React.FC = () => {
 
   const getNext7Days = () => {
     const dates = [];
-    for (let i = 0; i < 7; i++) {
+    for (let i = 1; i < 8; i++) { // Start from 1 to exclude today
       const date = new Date();
       date.setDate(date.getDate() + i);
       dates.push(date.toISOString().split('T')[0]);
@@ -107,59 +142,40 @@ const ClientDashboard: React.FC = () => {
     setIsBookingLoading(true);
     
     try {
-      const verifyResponse = await fetch('http://localhost:3000/meetings/available-times', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          dates: [selectedDate],
-          businessConsultantIds: [selectedConsultant.id],
-          serviceId: selectedService.id
-        })
-      });
-      
-      const currentAvailableTimes = await verifyResponse.json();
+      // בדיקה מחודשת של זמינות
+      const currentAvailableTimes = await meetingsAPI.getAvailableTimes([selectedDate], [selectedConsultant.id]);
       const availableSlots = currentAvailableTimes[selectedConsultant.id]?.[selectedDate] || [];
       const isStillAvailable = availableSlots.some((slot: { start: string; businessHourId: number }) => 
         slot.start === selectedTime && slot.businessHourId === selectedBusinessHourId
       );
       
       if (!isStillAvailable) {
-        alert('מצטערים, הזמן שבחרת כבר תפוס. אנא בחר זמן אחר.');
+        showWarning('זמן תפוס', 'מצטערים, הזמן שבחרת כבר תפוס. אנא בחר זמן אחר.');
         await handleConsultantSelect(selectedConsultant);
+        return;
+      }
+
+      if (!user?.id) {
+        showError('שגיאה באימות', 'פרטי המשתמש לא נמצאו. אנא התחבר מחדש.');
         return;
       }
 
       const meetingData = {
         businessHourId: selectedBusinessHourId,
         serviceId: selectedService.id,
-        clientId: user?.id,
+        clientId: user.id,
         date: selectedDate,
         startTime: selectedTime,
         endTime: calculateEndTime(selectedTime, selectedService.duration),
         notes: notes
       };
 
-      const response = await fetch('http://localhost:3000/meetings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(meetingData)
-      });
-
-      if (response.ok) {
-        setStep('success');
-      } else {
-        const errorText = await response.text();
-        console.error('Server error:', errorText);
-        alert('שגיאה ביצירת הפגישה. אנא נסה שוב.');
-      }
+      await meetingsAPI.createMeeting(meetingData);
+      showSuccess('פגישה נוצרה בהצלחה!', 'הפגישה שלך נוספה למערכת. תקבל אישור בקרוב.');
+      setStep('success');
     } catch (error) {
       console.error('Error creating meeting:', error);
-      alert('שגיאה ביצירת הפגישה. אנא נסה שוב.');
+      showError('שגיאה ביצירת פגישה', 'לא ניתן היה ליצור את הפגישה. אנא נסה שוב.');
     } finally {
       setIsBookingLoading(false);
     }
@@ -634,6 +650,19 @@ const ClientDashboard: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Logout Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={showLogoutDialog}
+        onClose={cancelLogout}
+        onConfirm={confirmLogout}
+        title="התנתקות מהמערכת"
+        message="האם אתה בטוח שברצונך להתנתק מהמערכת?"
+        confirmText="התנתק"
+        cancelText="ביטול"
+        type="warning"
+        isLoading={isLoggingOut}
+      />
     </div>
   );
 };

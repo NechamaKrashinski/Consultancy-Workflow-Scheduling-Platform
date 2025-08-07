@@ -3,6 +3,8 @@ import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { fetchServices } from '../../store/slices/servicesSlice';
 import { Clock, DollarSign, User, ArrowLeft, CheckCircle } from 'lucide-react';
 import { Service } from '../../types';
+import { meetingsAPI } from '../../services/api';
+import { useToast } from '../../components/ToastProvider';
 
 interface Consultant {
   id: number;
@@ -23,6 +25,7 @@ interface AvailableSlots {
 }
 
 const BookingPage: React.FC = () => {
+  const { showSuccess, showError, showWarning } = useToast();
   const [step, setStep] = useState<'services' | 'consultants' | 'times' | 'confirm' | 'success'>('services');
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedConsultant, setSelectedConsultant] = useState<Consultant | null>(null);
@@ -48,8 +51,7 @@ const BookingPage: React.FC = () => {
     
     try {
       // קבלת יועצים לשירות הנבחר
-      const response = await fetch(`http://localhost:3000/meetings/consultants/${service.id}`);
-      const consultantsData = await response.json();
+      const consultantsData = await meetingsAPI.getConsultantsByService(service.id.toString());
       setConsultants(consultantsData);
       setStep('consultants');
     } catch (error) {
@@ -68,22 +70,11 @@ const BookingPage: React.FC = () => {
     try {
       // קבלת זמנים פנויים ליועץ הנבחר
       const dates = getNext7Days();
-      const response = await fetch('http://localhost:3000/meetings/available-times', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          dates: dates,
-          businessConsultantIds: [consultant.id],
-          serviceId: selectedService.id
-        })
-      });
-      
-      const availableTimes = await response.json();
-      console.log('🔍 Available times received from server:', JSON.stringify(availableTimes, null, 2));
-      console.log('🔍 Consultant ID:', consultant.id);
-      console.log('🔍 Available slots structure:', Object.keys(availableTimes));
+      const availableTimes = await meetingsAPI.getAvailableTimes(
+        dates,
+        [consultant.id],
+        selectedService.id
+      );
       
       setAvailableSlots(availableTimes);
       setStep('times');
@@ -118,95 +109,88 @@ const BookingPage: React.FC = () => {
     
     try {
       // בדיקה מחדש של זמינות לפני יצירת הפגישה
-      console.log('🔍 Verifying availability before booking...');
-      const verifyResponse = await fetch('http://localhost:3000/meetings/available-times', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          dates: [selectedDate],
-          businessConsultantIds: [selectedConsultant.id],
-          serviceId: selectedService.id
-        })
-      });
+      const currentAvailableTimes = await meetingsAPI.getAvailableTimes(
+        [selectedDate],
+        [selectedConsultant.id],
+        selectedService.id
+      );
       
-      const currentAvailableTimes = await verifyResponse.json();
       const availableSlots = currentAvailableTimes[selectedConsultant.id]?.[selectedDate] || [];
       const isStillAvailable = availableSlots.some((slot: TimeSlot) => 
         slot.start === selectedTime && slot.businessHourId === selectedBusinessHourId
       );
       
       if (!isStillAvailable) {
-        alert('מצטערים, הזמן שבחרת כבר תפוס. אנא בחר זמן אחר.');
+        showWarning(
+          'זמן תפוס',
+          'מצטערים, הזמן שבחרת כבר תפוס. אנא בחר זמן אחר.'
+        );
         // רענון הזמנים הפנויים
         await handleConsultantSelect(selectedConsultant);
         return;
       }
 
       // יצירת פגישה חדשה
+      if (!user?.id) {
+        showError(
+          'שגיאת משתמש',
+          'פרטי המשתמש לא נמצאו. אנא התחבר מחדש.'
+        );
+        return;
+      }
+
       const meetingData = {
         businessHourId: selectedBusinessHourId,
         serviceId: selectedService.id,
-        clientId: user?.id,
+        clientId: user.id,
         date: selectedDate,
         startTime: selectedTime,
         endTime: calculateEndTime(selectedTime, selectedService.duration),
         notes: notes
       };
 
-      const response = await fetch('http://localhost:3000/meetings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(meetingData)
-      });
-
-      if (response.ok) {
+      try {
+        await meetingsAPI.createMeeting(meetingData);
+        showSuccess(
+          'פגישה נקבעה בהצלחה',
+          'הפגישה שלך נקבעה בהצלחה!'
+        );
         setStep('success');
-      } else {
-        const errorText = await response.text();
-        console.error('Server error:', errorText);
+      } catch (error: unknown) {
+        console.error('Server error:', error);
         
         // אם השגיאה היא שהזמן כבר תפוס, נרענן את הזמנים הפנויים
-        try {
-          const errorData = JSON.parse(errorText);
-          if (errorData.message && errorData.message.includes('meeting already exists')) {
-            alert('מצטערים, הזמן שבחרת כבר תפוס. הזמנים הפנויים מתעדכנים...');
-            
-            // רענון הזמנים הפנויים עם קבלת נתונים עדכניים מהשרת
-            const dates = getNext7Days();
-            const refreshResponse = await fetch('http://localhost:3000/meetings/available-times', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                dates: dates,
-                businessConsultantIds: [selectedConsultant.id],
-                serviceId: selectedService.id
-              })
-            });
-            
-            const refreshedAvailableTimes = await refreshResponse.json();
-            console.log('🔄 Refreshed available times after conflict:', JSON.stringify(refreshedAvailableTimes, null, 2));
-            
-            // עדכון ה-state עם הזמנים החדשים
-            setAvailableSlots(refreshedAvailableTimes);
-            setStep('times');
-          } else {
-            alert('שגיאה ביצירת הפגישה. אנא נסה שוב.');
-          }
-        } catch (parseError) {
-          console.error('Error parsing error response:', parseError);
-          alert('שגיאה ביצירת הפגישה. אנא נסה שוב.');
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('meeting already exists')) {
+          showWarning(
+            'זמן תפוס',
+            'מצטערים, הזמן שבחרת כבר תפוס. הזמנים הפנויים מתעדכנים...'
+          );
+          
+          // רענון הזמנים הפנויים עם קבלת נתונים עדכניים מהשרת
+          const dates = getNext7Days();
+          const refreshedAvailableTimes = await meetingsAPI.getAvailableTimes(
+            dates,
+            [selectedConsultant.id],
+            selectedService.id
+          );
+          
+          // עדכון ה-state עם הזמנים החדשים
+          setAvailableSlots(refreshedAvailableTimes);
+          setStep('times');
+        } else {
+          showError(
+            'שגיאה ביצירת פגישה',
+            'שגיאה ביצירת הפגישה. אנא נסה שוב.'
+          );
         }
       }
     } catch (error) {
       console.error('Error creating meeting:', error);
-      alert('שגיאה ביצירת הפגישה. אנא נסה שוב.');
+      showError(
+        'שגיאה ביצירת פגישה',
+        'שגיאה ביצירת הפגישה. אנא נסה שוב.'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -353,14 +337,9 @@ const BookingPage: React.FC = () => {
               <div className="space-y-4">
                 {(() => {
                   const consultantSlots = availableSlots[selectedConsultant?.id || ''] || {};
-                  console.log('🔍 Consultant slots for display:', consultantSlots);
-                  console.log('🔍 Selected consultant ID:', selectedConsultant?.id);
-                  console.log('🔍 Available slots keys:', Object.keys(availableSlots));
                   
                   const slotsWithTimes = Object.entries(consultantSlots)
                     .filter(([, slots]) => slots && slots.length > 0);
-                  
-                  console.log('🔍 Filtered slots with times:', slotsWithTimes);
                   
                   return slotsWithTimes.map(([date, slots]) => (
                   <div key={date} className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20">

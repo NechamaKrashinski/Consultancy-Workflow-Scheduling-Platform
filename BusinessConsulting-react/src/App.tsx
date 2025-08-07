@@ -5,6 +5,7 @@ import { store } from './store';
 import { useAppDispatch, useAppSelector } from './hooks/redux';
 import { initializeAuth } from './store/slices/authSlice';
 import ProtectedRoute from './components/ProtectedRoute';
+import { ToastProvider } from './components/ToastProvider';
 import LoginPage from './pages/LoginPage';
 import ManagerDashboard from './pages/manager/ManagerDashboard';
 import ClientDashboard from './pages/client/ClientDashboard';
@@ -63,9 +64,11 @@ const AppContent: React.FC = () => {
 function App() {
   return (
     <Provider store={store}>
-      <Router>
-        <AppContent />
-      </Router>
+      <ToastProvider>
+        <Router>
+          <AppContent />
+        </Router>
+      </ToastProvider>
     </Provider>
   );
 }

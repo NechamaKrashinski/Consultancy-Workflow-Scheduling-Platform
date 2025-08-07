@@ -7,8 +7,8 @@ const validateEmail = (email) => {
 };
 
 const validatePassword = (password) => {
-    // לפחות 8 תווים, אות גדולה, אות קטנה, מספר
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{8,}$/;
+    // לפחות 6 תווים, אות גדולה, אות קטנה, מספר
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{6,}$/;
     return passwordRegex.test(password);
 };
 
@@ -30,19 +30,36 @@ const schemas = {
                 'string.max': 'שם לא יכול להיות יותר מ-100 תווים'
             }),
         
-        email: joi.string().email().required()
+        email: joi.string().required()
+            .custom((value, helpers) => {
+                if (!validateEmail(value)) {
+                    return helpers.error('string.email');
+                }
+                return value;
+            })
             .messages({
                 'string.email': 'כתובת אימייל לא תקינה'
             }),
         
-        password: joi.string().min(8).required()
-            .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&#]{8,}$/)
+        password: joi.string().min(6).required()
+            .custom((value, helpers) => {
+                if (!validatePassword(value)) {
+                    return helpers.error('string.pattern.base');
+                }
+                return value;
+            })
             .messages({
                 'string.pattern.base': 'סיסמה חייבת להכיל לפחות אות גדולה, אות קטנה ומספר',
-                'string.min': 'סיסמה חייבת להיות לפחות 8 תווים'
+                'string.min': 'סיסמה חייבת להיות לפחות 6 תווים'
             }),
         
-        phone: joi.string().pattern(/^05\d{1}-?\d{7}$/).required()
+        phone: joi.string().required()
+            .custom((value, helpers) => {
+                if (!validatePhone(value)) {
+                    return helpers.error('string.pattern.base');
+                }
+                return value;
+            })
             .messages({
                 'string.pattern.base': 'מספר טלפון לא תקין (פורמט: 05X-XXXXXXX)'
             }),
@@ -62,12 +79,39 @@ const schemas = {
         last_name: joi.string().min(2).max(50).required()
             .pattern(/^[a-zA-Zא-ת\s]+$/),
         
-        email: joi.string().email().required(),
+        email: joi.string().required()
+            .custom((value, helpers) => {
+                if (!validateEmail(value)) {
+                    return helpers.error('string.email');
+                }
+                return value;
+            })
+            .messages({
+                'string.email': 'כתובת אימייל לא תקינה'
+            }),
         
-        password: joi.string().min(8).required()
-            .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{8,}$/),
+        password: joi.string().min(6).required()
+            .custom((value, helpers) => {
+                if (!validatePassword(value)) {
+                    return helpers.error('string.pattern.base');
+                }
+                return value;
+            })
+            .messages({
+                'string.pattern.base': 'סיסמה חייבת להכיל לפחות אות גדולה, אות קטנה ומספר',
+                'string.min': 'סיסמה חייבת להיות לפחות 6 תווים'
+            }),
         
-        phone: joi.string().pattern(/^05\d{1}-?\d{7}$/).required(),
+        phone: joi.string().required()
+            .custom((value, helpers) => {
+                if (!validatePhone(value)) {
+                    return helpers.error('string.pattern.base');
+                }
+                return value;
+            })
+            .messages({
+                'string.pattern.base': 'מספר טלפון לא תקין (פורמט: 05X-XXXXXXX)'
+            }),
         
         expertise: joi.string().min(10).max(500).required()
             .messages({

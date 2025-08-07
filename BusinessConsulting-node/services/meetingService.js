@@ -170,6 +170,16 @@ const getMeetings = async (clientId = null) => {
             {
                 model: Client,
                 attributes: ['name', 'email']
+            },
+            {
+                model: BusinessHours,
+                attributes: ['business_consultant_id'],
+                include: [
+                    {
+                        model: BusinessConsultant,
+                        attributes: ['id', 'name', 'email']
+                    }
+                ]
             }
         ],
         order: [['date', 'DESC'], ['start_time', 'DESC']]

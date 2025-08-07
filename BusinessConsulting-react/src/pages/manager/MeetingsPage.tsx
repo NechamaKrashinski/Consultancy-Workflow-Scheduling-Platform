@@ -1,13 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
-import { updateMeeting } from '../../store/slices/meetingsSlice';
-import { Calendar, Clock, User, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { updateMeeting, fetchManagerMeetings } from '../../store/slices/meetingsSlice';
+import { fetchConsultants } from '../../store/slices/businessConsultantSlice';
+import { Calendar, Clock, User } from 'lucide-react';
+import { StatusFilter, DateFilter } from '../../types/filters';
 import ConfirmationDialog from '../../components/ConfirmationDialog';
 import LoadingButton from '../../components/LoadingButton';
+import MeetingFiltersComponent from '../../components/MeetingFilters';
+import StatusBadge from '../../components/StatusBadge';
 import { useToast } from '../../components/ToastProvider';
 
 const MeetingsPage: React.FC = () => {
   const { showSuccess, showError } = useToast();
+  
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+  const [consultantFilter, setConsultantFilter] = useState<number | 'all'>('all');
+  
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     meetingId: string;
@@ -26,6 +37,13 @@ const MeetingsPage: React.FC = () => {
   const dispatch = useAppDispatch();
   const { meetings, isLoading, error } = useAppSelector((state) => state.meetings);
   const { services } = useAppSelector((state) => state.services);
+  const { consultants } = useAppSelector((state) => state.consultants);
+
+  // Load data on component mount
+  useEffect(() => {
+    dispatch(fetchManagerMeetings());
+    dispatch(fetchConsultants());
+  }, [dispatch]);
 
   // Format date to readable format
   const formatDate = (dateString: string) => {
@@ -65,30 +83,105 @@ const MeetingsPage: React.FC = () => {
     }
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'confirmed':
-        return <CheckCircle className="h-5 w-5 text-emerald-600" />;
-      case 'pending':
-        return <AlertCircle className="h-5 w-5 text-amber-600" />;
-      case 'cancelled':
-        return <XCircle className="h-5 w-5 text-red-600" />;
-      default:
-        return <Clock className="h-5 w-5 text-gray-600" />;
+  // Filter logic for meetings
+  const filteredMeetings = useMemo(() => {
+    let filtered = [...meetings];
+    
+    // Debug: בואו נראה מה יש לנו במפגשים
+    console.log('All meetings:', meetings);
+    console.log('Consultant filter:', consultantFilter);
+    console.log('Available consultants:', consultants);
+    
+    // Debug: בואו נראה איך נראית פגישה אחת
+    if (meetings.length > 0) {
+      console.log('First meeting structure:', meetings[0]);
+      console.log('First meeting BusinessHour:', meetings[0].BusinessHour);
+      console.log('First meeting BusinessHour.BusinessConsultant:', meetings[0].BusinessHour?.BusinessConsultant);
     }
-  };
+    
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(meeting => {
+        const service = services.find(s => s.id === meeting.service_id);
+        const client = meeting.client;
+        return (
+          service?.name.toLowerCase().includes(query) ||
+          client?.name.toLowerCase().includes(query) ||
+          client?.email.toLowerCase().includes(query) ||
+          meeting.notes?.toLowerCase().includes(query) ||
+          meeting.date.includes(query)
+        );
+      });
+      console.log('After search filter:', filtered.length);
+    }
+    
+    // Status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(meeting => meeting.status === statusFilter);
+      console.log('After status filter:', filtered.length);
+    }
+    
+    // Date filter
+    if (dateFilter !== 'all') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      filtered = filtered.filter(meeting => {
+        const meetingDate = new Date(meeting.date);
+        meetingDate.setHours(0, 0, 0, 0);
+        
+        switch (dateFilter) {
+          case 'today':
+            return meetingDate.getTime() === today.getTime();
+          case 'upcoming':
+            return meetingDate.getTime() >= today.getTime();
+          case 'past':
+            return meetingDate.getTime() < today.getTime();
+          default:
+            return true;
+        }
+      });
+      console.log('After date filter:', filtered.length);
+    }
+    
+    // Consultant filter
+    if (consultantFilter !== 'all') {
+      console.log('Before consultant filter - filtered meetings count:', filtered.length);
+      console.log('Filtering by consultant ID:', consultantFilter, typeof consultantFilter);
+      
+      // בואו נבדוק פגישה אחת בפירוט מלא
+      if (filtered.length > 0) {
+        console.log('First meeting full structure:', JSON.stringify(filtered[0], null, 2));
+      }
+      
+      filtered = filtered.filter(meeting => {
+        const consultant = meeting.BusinessHour?.BusinessConsultant;
+        console.log('Meeting consultant data:', {
+          meetingId: meeting.id,
+          businessHour: meeting.BusinessHour,
+          consultant: consultant,
+          consultantId: consultant?.id,
+          consultantIdType: typeof consultant?.id,
+          filterType: typeof consultantFilter,
+          comparison: consultant?.id === consultantFilter,
+          strictComparison: consultant?.id === Number(consultantFilter)
+        });
+        return consultant && consultant.id === Number(consultantFilter);
+      });
+      
+      console.log('Filtered meetings by consultant:', filtered);
+    }
+    
+    // Sort by date (newest first)
+    return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [meetings, services, searchQuery, statusFilter, dateFilter, consultantFilter, consultants]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'confirmed':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-      case 'pending':
-        return 'bg-amber-100 text-amber-800 border-amber-200';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800 border-red-200';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
+  const clearFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('all');
+    setDateFilter('all');
+    setConsultantFilter('all');
   };
 
   const handleStatusChange = (meetingId: string, newStatus: string) => {
@@ -156,13 +249,22 @@ const MeetingsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Meeting Management</h2>
-        <div className="text-sm text-gray-600">
-          {meetings.length} total meetings
-        </div>
-      </div>
+      {/* Filters */}
+      <MeetingFiltersComponent
+        searchQuery={searchQuery}
+        statusFilter={statusFilter}
+        dateFilter={dateFilter}
+        consultantFilter={consultantFilter}
+        onSearchChange={setSearchQuery}
+        onStatusFilterChange={setStatusFilter}
+        onDateFilterChange={setDateFilter}
+        onConsultantFilterChange={setConsultantFilter}
+        onClearFilters={clearFilters}
+        totalMeetings={meetings.length}
+        filteredMeetings={filteredMeetings.length}
+        consultants={consultants}
+        userRole="manager"
+      />
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
@@ -172,7 +274,7 @@ const MeetingsPage: React.FC = () => {
 
       {/* Meetings List */}
       <div className="space-y-4">
-        {meetings.map((meeting) => {
+        {filteredMeetings.map((meeting) => {
           const service = services.find(s => s.id === meeting.service_id);
           return (
             <div key={meeting.id} className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 hover:shadow-xl transition-all duration-200">
@@ -180,15 +282,10 @@ const MeetingsPage: React.FC = () => {
                 <div className="flex-1 space-y-3">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-gray-900">{service?.name}</h3>
-                    <div className="flex items-center space-x-2">
-                      {getStatusIcon(meeting.status)}
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(meeting.status)}`}>
-                        {meeting.status.charAt(0).toUpperCase() + meeting.status.slice(1)}
-                      </span>
-                    </div>
+                    <StatusBadge status={meeting.status} />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-gray-600">
                     <div className="flex items-center">
                       <User className="h-4 w-4 mr-2" />
                       <div>
@@ -208,6 +305,13 @@ const MeetingsPage: React.FC = () => {
                       <div>
                         <p className="font-medium text-gray-900">{service?.duration} minutes</p>
                         <p>${service?.price}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <User className="h-4 w-4 mr-2 text-blue-600" />
+                      <div>
+                        <p className="font-medium text-gray-900">יועץ:</p>
+                        <p className="text-blue-600">{meeting.BusinessHour?.BusinessConsultant?.name || 'לא זמין'}</p>
                       </div>
                     </div>
                   </div>
@@ -269,12 +373,29 @@ const MeetingsPage: React.FC = () => {
         })}
       </div>
 
+      {/* No Results Messages */}
+      {filteredMeetings.length === 0 && meetings.length > 0 && !isLoading && (
+        <div className="text-center py-12">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 border border-white/20">
+            <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600 mb-2">לא נמצאו פגישות המתאימות לחיפוש</p>
+            <p className="text-sm text-gray-500 mb-4">נסה לשנות את תנאי החיפוש או הסינון</p>
+            <button
+              onClick={clearFilters}
+              className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+            >
+              נקה כל הסינונים
+            </button>
+          </div>
+        </div>
+      )}
+
       {meetings.length === 0 && !isLoading && (
         <div className="text-center py-12">
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 border border-white/20">
             <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600 mb-2">No meetings scheduled yet</p>
-            <p className="text-sm text-gray-500">Meetings will appear here when clients book your services</p>
+            <p className="text-gray-600 mb-2">אין פגישות מתוזמנות</p>
+            <p className="text-sm text-gray-500">פגישות יופיעו כאן כאשר לקוחות יזמינו את השירותים שלך</p>
           </div>
         </div>
       )}

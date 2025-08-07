@@ -1,11 +1,9 @@
 
+// Export filter types first
+export * from './filters';
 
-export enum MeetingStatus {
-  BOOKED = 'booked',
-  AVAILABLE = 'available', 
-  PENDING = 'pending',
-  CONFIRMED = 'confirmed'
-}
+// Import types we need locally
+import type { MeetingStatus } from './filters';
 
 // UI Types
 export type TabId = 'overview' | 'services' | 'meetings' | 'consultant-linking';
@@ -77,10 +75,20 @@ export interface Meeting {
   status: MeetingStatus;
   service?: {
     name: string;
+    price: number;
+    duration: number;
   };
   client?: {
     name: string;
     email: string;
+  };
+  BusinessHour?: {
+    business_consultant_id: number;
+    BusinessConsultant?: {
+      id: number;
+      name: string;
+      email: string;
+    };
   };
   notes?: string;
 }

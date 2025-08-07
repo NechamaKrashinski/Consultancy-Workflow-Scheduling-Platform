@@ -1,18 +1,27 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { fetchServices } from '../../store/slices/servicesSlice';
 import { fetchClientMeetings } from '../../store/slices/meetingsSlice';
 import { logout } from '../../store/slices/authSlice';
-import { LogOut, Calendar, Clock, CheckCircle, XCircle, AlertCircle, DollarSign, User, ArrowLeft } from 'lucide-react';
+import { LogOut, Calendar, Clock, CheckCircle, User, ArrowLeft } from 'lucide-react';
 import { Service, BusinessConsultant } from '../../types';
+import { StatusFilter, DateFilter } from '../../types/filters';
 import { meetingsAPI } from '../../services/api';
 import { useToast } from '../../components/ToastProvider';
 import ConfirmationDialog from '../../components/ConfirmationDialog';
+import ServiceSearch from '../../components/ServiceSearch';
+import MeetingFiltersComponent from '../../components/MeetingFilters';
+import MeetingsList from '../../components/MeetingsList';
 
 const ClientDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'book-meeting' | 'my-meetings'>('book-meeting');
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  
+  // Search and Filter states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   
   // Booking states
   const [step, setStep] = useState<'services' | 'consultants' | 'times' | 'confirm' | 'success'>('services');
@@ -200,66 +209,58 @@ const ClientDashboard: React.FC = () => {
     setAvailableSlots({});
   };
 
-  // Format date to readable format
-  const formatDate = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('he-IL', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
+  // Filter and search functions for meetings
+  const filteredMeetings = useMemo(() => {
+    let filtered = [...meetings];
+    
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(meeting => {
+        const service = services.find(s => s.id === meeting.service_id);
+        return (
+          service?.name.toLowerCase().includes(query) ||
+          meeting.notes?.toLowerCase().includes(query) ||
+          meeting.date.includes(query)
+        );
       });
-    } catch {
-      return dateString;
     }
-  };
-
-  // Format time to readable format
-  const formatTime = (timeString: string) => {
-    try {
-      let date;
-      if (timeString.includes('T')) {
-        date = new Date(timeString);
-      } else {
-        const [hours, minutes] = timeString.split(':');
-        date = new Date();
-        date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-      }
+    
+    // Status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(meeting => meeting.status === statusFilter);
+    }
+    
+    // Date filter
+    if (dateFilter !== 'all') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
       
-      return date.toLocaleTimeString('he-IL', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
+      filtered = filtered.filter(meeting => {
+        const meetingDate = new Date(meeting.date);
+        meetingDate.setHours(0, 0, 0, 0);
+        
+        switch (dateFilter) {
+          case 'today':
+            return meetingDate.getTime() === today.getTime();
+          case 'upcoming':
+            return meetingDate.getTime() >= today.getTime();
+          case 'past':
+            return meetingDate.getTime() < today.getTime();
+          default:
+            return true;
+        }
       });
-    } catch {
-      return timeString;
     }
-  };
+    
+    // Sort by date (newest first)
+    return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [meetings, services, searchQuery, statusFilter, dateFilter]);
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'confirmed':
-        return <CheckCircle className="h-5 w-5 text-emerald-600" />;
-      case 'pending':
-        return <AlertCircle className="h-5 w-5 text-amber-600" />;
-      case 'cancelled':
-        return <XCircle className="h-5 w-5 text-red-600" />;
-      default:
-        return <Clock className="h-5 w-5 text-gray-600" />;
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'confirmed':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-      case 'pending':
-        return 'bg-amber-100 text-amber-800 border-amber-200';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800 border-red-200';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
+  const clearFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('all');
+    setDateFilter('all');
   };
 
   const tabs = [
@@ -336,31 +337,11 @@ const ClientDashboard: React.FC = () => {
 
             {/* Step 1: Select Service */}
             {step === 'services' && (
-              <div className="space-y-6">
-                <h2 className="text-2xl font-semibold text-gray-900">Choose a Service</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {services.map((service) => (
-                    <div
-                      key={service.id}
-                      onClick={() => handleServiceSelect(service)}
-                      className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 hover:shadow-xl transition-all duration-200 cursor-pointer group"
-                    >
-                      <h3 className="text-xl font-semibold text-gray-900 mb-2">{service.name}</h3>
-                      <p className="text-gray-600 mb-4">{service.description}</p>
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center text-emerald-600 font-semibold">
-                          <DollarSign className="h-4 w-4 mr-1" />
-                          ${service.price}
-                        </div>
-                        <div className="flex items-center text-gray-600">
-                          <Clock className="h-4 w-4 mr-1" />
-                          {service.duration} min
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <ServiceSearch
+                services={services}
+                onServiceSelect={handleServiceSelect}
+                isLoading={false}
+              />
             )}
 
             {/* Step 2: Select Consultant */}
@@ -570,12 +551,18 @@ const ClientDashboard: React.FC = () => {
 
         {activeTab === 'my-meetings' && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-900">My Meetings</h2>
-              <div className="text-sm text-gray-600">
-                {meetings.length} total meetings
-              </div>
-            </div>
+            <MeetingFiltersComponent
+              searchQuery={searchQuery}
+              statusFilter={statusFilter}
+              dateFilter={dateFilter}
+              onSearchChange={setSearchQuery}
+              onStatusFilterChange={setStatusFilter}
+              onDateFilterChange={setDateFilter}
+              onClearFilters={clearFilters}
+              totalMeetings={meetings.length}
+              filteredMeetings={filteredMeetings.length}
+              userRole="client"
+            />
 
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
@@ -583,70 +570,14 @@ const ClientDashboard: React.FC = () => {
               </div>
             )}
 
-            {/* Meetings List */}
-            <div className="space-y-4">
-              {meetings.map((meeting) => {
-                const service = services.find(s => s.id === meeting.service_id);
-                return (
-                  <div key={meeting.id} className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20 hover:shadow-xl transition-all duration-200">
-                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
-                      <div className="flex-1 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-lg font-semibold text-gray-900">{service?.name}</h3>
-                          <div className="flex items-center space-x-2">
-                            {getStatusIcon(meeting.status)}
-                            <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(meeting.status)}`}>
-                              {meeting.status.charAt(0).toUpperCase() + meeting.status.slice(1)}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
-                          <div className="flex items-center">
-                            <Calendar className="h-4 w-4 mr-2" />
-                            <div>
-                              <p className="font-medium text-gray-900">{formatDate(meeting.date)}</p>
-                              <p>{formatTime(meeting.start_time)}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center">
-                            <Clock className="h-4 w-4 mr-2" />
-                            <div>
-                              <p className="font-medium text-gray-900">{service?.duration} minutes</p>
-                              <p>${service?.price}</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {meeting.notes && (
-                          <div className="bg-gray-50 rounded-lg p-3">
-                            <p className="text-sm text-gray-700">
-                              <strong>Notes:</strong> {meeting.notes}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {meetings.length === 0 && !isLoading && (
-              <div className="text-center py-12">
-                <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 border border-white/20">
-                  <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600 mb-2">No meetings scheduled yet</p>
-                  <p className="text-sm text-gray-500">Book your first meeting to get started</p>
-                </div>
-              </div>
-            )}
-
-            {isLoading && (
-              <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              </div>
-            )}
+            <MeetingsList
+              meetings={filteredMeetings}
+              services={services}
+              isLoading={isLoading}
+              error={error}
+              onClearFilters={clearFilters}
+              hasActiveFilters={searchQuery !== '' || statusFilter !== 'all' || dateFilter !== 'all'}
+            />
           </div>
         )}
       </div>

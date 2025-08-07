@@ -4,7 +4,7 @@ import { fetchServices } from '../../store/slices/servicesSlice';
 import { fetchManagerMeetings } from '../../store/slices/meetingsSlice';
 import { fetchConsultants } from '../../store/slices/businessConsultantSlice';
 import { logout } from '../../store/slices/authSlice';
-import { MeetingStatus, TabId } from '../../types';
+import { TabId } from '../../types';
 import { LogOut, BarChart3, Calendar, Settings, Users } from 'lucide-react';
 import ServicesPage from './ServicesPage';
 import MeetingsPage from './MeetingsPage';
@@ -33,11 +33,11 @@ const ManagerDashboard: React.FC = () => {
 
   // Performance optimization: מחשב את הfilters רק כשהmeetings משתנים
   const activeMeetingsCount = useMemo(() => 
-    meetings.filter(apt => apt.status === MeetingStatus.BOOKED).length, [meetings]
+    meetings.filter(apt => apt.status === 'booked').length, [meetings]
   );
   
   const pendingApprovalsCount = useMemo(() => 
-    meetings.filter(apt => apt.status === MeetingStatus.AVAILABLE).length, [meetings]
+    meetings.filter(apt => apt.status === 'pending').length, [meetings]
   );
 
   const handleLogout = () => {
@@ -214,8 +214,8 @@ const ManagerDashboard: React.FC = () => {
                       <div className="text-right">
                         <p className="text-sm text-gray-600">{meeting.date} at {meeting.start_time}</p>
                         <span className={`inline-flex px-2 py-1 text-xs rounded-full ${
-                          meeting.status === MeetingStatus.BOOKED ? 'bg-emerald-100 text-emerald-800' :
-                          meeting.status === MeetingStatus.AVAILABLE ? 'bg-amber-100 text-amber-800' :
+                          meeting.status === 'booked' ? 'bg-emerald-100 text-emerald-800' :
+                          meeting.status === 'pending' ? 'bg-amber-100 text-amber-800' :
                           'bg-gray-100 text-gray-800'
                         }`}>
                           {meeting.status}

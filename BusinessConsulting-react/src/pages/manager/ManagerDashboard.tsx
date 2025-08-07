@@ -3,7 +3,7 @@ import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { fetchServices } from '../../store/slices/servicesSlice';
 import { fetchManagerMeetings } from '../../store/slices/meetingsSlice';
 import { fetchConsultants } from '../../store/slices/businessConsultantSlice';
-import { logoutUser } from '../../store/slices/authSlice';
+import { logout } from '../../store/slices/authSlice';
 import { MeetingStatus, TabId } from '../../types';
 import { LogOut, BarChart3, Calendar, Settings, Users } from 'lucide-react';
 import ServicesPage from './ServicesPage';
@@ -35,7 +35,7 @@ const ManagerDashboard: React.FC = () => {
   );
 
   const handleLogout = () => {
-    dispatch(logoutUser());
+    dispatch(logout());
   };
 
   const stats = [

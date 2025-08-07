@@ -59,13 +59,21 @@ const apiCallWrapper = async (apiCall: () => Promise<any>) => {
 export const authAPI = {
   login: async (credentials: LoginCredentials): Promise<{ user: User; token: string }> => {
     const response = await api.post('/login', credentials);
-    return response.data;
+    // השרת מחזיר: { success: true, message: "...", data: { token: "...", loginTime: "..." } }
+    return { 
+      token: response.data.data.token,
+      user: {} as User // נמלא אחר כך מgetProfile
+    };
   },
 
   register: async (data: RegisterData): Promise<{ user: User; token: string }> => {
     console.log('Registering user:', data);
     const response = await api.post('/login/register', data);
-    return response.data;
+    // השרת מחזיר: { success: true, message: "...", data: { token: "...", userType: "..." } }
+    return { 
+      token: response.data.data.token,
+      user: {} as User // נמלא אחר כך מgetProfile
+    };
   },
 
   loginWithGoogle: async (googleToken: string): Promise<{ user: User; token: string }> => {
@@ -84,7 +92,8 @@ export const authAPI = {
 
   getProfile: async (): Promise<User> => {
     const response = await api.get('/profile');
-    return response.data;
+    // נניח שהשרת מחזיר את הפרופיל ישירות או ב-response.data
+    return response.data.data || response.data;
   },
 };
 

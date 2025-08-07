@@ -15,7 +15,8 @@ const registerClient = async (data) => {
         throw new Error('Please provide all required fields');
     }
 
-    if (/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d!@#$%^&*()]{6,}$/.test(password)) {
+    // תיקון הלוגיקה: אם הסיסמה לא עומדת בתנאים, זרוק שגיאה
+    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d!@#$%^&*()_+=\-~`[\]{}|\\:";'<>?,./]{6,}$/.test(password)) {
         throw new Error('Password must be at least 6 characters long and contain at least one uppercase letter, one lowercase letter, and one number');
     }
 
@@ -69,19 +70,10 @@ const registerBusinessConsultant = async (data) => {
         throw new Error('Please provide all required fields');
     }
 
-if (password.length < 6) {
-        throw new Error('Password must be at least 6 characters long');
+    // אותה validation כמו ב-registerClient - עקביות
+    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d!@#$%^&*()]{6,}$/.test(password)) {
+        throw new Error('Password must be at least 6 characters long and contain at least one uppercase letter, one lowercase letter, and one number');
     }
-    if (!/[a-z]/.test(password)) {
-        throw new Error('Password must contain at least one lowercase letter');
-    }
-    if (!/[A-Z]/.test(password)) {
-        throw new Error('Password must contain at least one uppercase letter');
-    }
-    if (!/\d/.test(password)) {
-        throw new Error('Password must contain at least one number');
-    }
-
 
     const existingBusinessConsultant = await BusinessConsultant.findOne({ where: { email } });
 

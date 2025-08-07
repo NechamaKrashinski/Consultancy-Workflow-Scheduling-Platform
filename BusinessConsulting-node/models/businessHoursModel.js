@@ -1,6 +1,5 @@
 const { DataTypes } = require('sequelize');
 const BusinessConsulting = require('../connection/dbConnection.js');
-const {BusinessConsultant} = require('./associations.js');
 
 const BusinessHours = BusinessConsulting.define('BusinessHours', {
     id: {
@@ -10,11 +9,8 @@ const BusinessHours = BusinessConsulting.define('BusinessHours', {
     },
 
     business_consultant_id: {
-        type: DataTypes.INTEGER,
-        references: {
-            model: BusinessConsultant, 
-            key: 'id'
-        }
+        type: DataTypes.INTEGER
+        // הreferences יוגדרו ב-associations.js
     },
     date: {
         type: DataTypes.DATE,

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { fetchServices } from '../../store/slices/servicesSlice';
 import { fetchClientMeetings } from '../../store/slices/meetingsSlice';
-import { logoutUser } from '../../store/slices/authSlice';
+import { logout } from '../../store/slices/authSlice';
 import { LogOut, Calendar, Clock, CheckCircle, XCircle, AlertCircle, DollarSign, User, ArrowLeft } from 'lucide-react';
 import { Service, BusinessConsultant } from '../../types';
 
@@ -34,7 +34,7 @@ const ClientDashboard: React.FC = () => {
   }, [dispatch, activeTab]);
 
   const handleLogout = () => {
-    dispatch(logoutUser());
+    dispatch(logout());
   };
 
   // Booking functions

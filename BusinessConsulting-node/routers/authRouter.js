@@ -1,11 +1,14 @@
 const express = require('express');
 //require('../api-docs/loginSwagger');
 const { registerBusinessConsultant,registerClient, login } = require('../controllers/authController');
+const { validate, sanitizeInput } = require('../middleware/validationMiddleware');
+const { authLimiter, registrationLimiter } = require('../middleware/rateLimitMiddleware');
 
 const router = express.Router();
 
-router.post('/register', registerClient);
-router.post('/add-manager', registerBusinessConsultant); // Assuming this is for adding a manager
-router.post('/', login);
+// הוספת validation, sanitization ו-rate limiting לכל הנתיבים
+router.post('/register', registrationLimiter, sanitizeInput, validate('clientRegistration'), registerClient);
+router.post('/add-manager', registrationLimiter, sanitizeInput, validate('consultantRegistration'), registerBusinessConsultant);
+router.post('/', authLimiter, sanitizeInput, validate('login'), login);
 
 module.exports = router;

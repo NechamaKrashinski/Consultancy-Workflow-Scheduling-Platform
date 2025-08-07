@@ -1,7 +1,5 @@
 const { DataTypes } = require('sequelize');
 const BusinessConsulting = require('../connection/dbConnection.js');
-const BusinessConsultant = require('./businessConsultantModel.js');
-const Service = require('./serviceModel.js');
 
 const ConsultantService = BusinessConsulting.define('ConsultantService', {
     id: {
@@ -10,18 +8,12 @@ const ConsultantService = BusinessConsulting.define('ConsultantService', {
         autoIncrement: true
     },
     consultant_id: {
-        type: DataTypes.INTEGER,
-        references: {
-            model: BusinessConsultant,
-            key: 'id'
-        }
+        type: DataTypes.INTEGER
+        // הreferences יוגדרו ב-associations.js
     },
     service_id: {
-        type: DataTypes.INTEGER,
-        references: {
-            model: Service,
-            key: 'id'
-        }
+        type: DataTypes.INTEGER
+        // הreferences יוגדרו ב-associations.js
     },
 }, {
     tableName: 'ConsultantService',

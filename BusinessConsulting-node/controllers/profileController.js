@@ -2,7 +2,6 @@ const profileService = require('../services/profileService');
 
 const getProfile = async (req, res) => {
     try {
-        // console.log("Fetching profile for user");
         
         const token = req.headers['authorization']?.split(' ')[1];
         const profileData = await profileService.getProfile(token);

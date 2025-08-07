@@ -23,6 +23,10 @@ const Client = BusinessConsulting.define('Client', {
         type: DataTypes.STRING,
         allowNull: false
     },
+    profile_image: {
+        type: DataTypes.STRING,
+        allowNull: true
+    },
 }, {
     tableName: 'Client',
     timestamps: true,

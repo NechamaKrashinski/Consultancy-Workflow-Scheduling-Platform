@@ -9,9 +9,6 @@ const {
 
 const createMeetingController = async (req, res) => {
     try {
-        console.log("Creating meeting with parameters:");
-        console.log("businessHourId:", req.body.businessHourId);
-        
         const meeting = await createMeeting(req.body.businessHourId, req.body.serviceId, req.body.clientId, req.body.date, req.body.startTime, req.body.endTime, req.body.notes);
         res.status(201).json(meeting);
     } catch (error) {
@@ -61,8 +58,8 @@ const getMeetingsController = async (req, res) => {
 
 const updateMeetingController = async (req, res) => {
     try {
-        await updateMeeting(req.params.id, req.body);
-        res.status(200).json({ message: 'Meeting updated successfully' });
+        const updatedMeeting = await updateMeeting(req.params.id, req.body);
+        res.status(200).json(updatedMeeting);
     } catch (error) {
         res.status(400).json({ message: error.message });
     }
@@ -79,13 +76,7 @@ const deleteMeetingController = async (req, res) => {
 
 const getAvailableTimesController = async (req, res) => {
     try {
-        console.log("🔍 getAvailableTimesController called with:");
-        console.log("Body:", JSON.stringify(req.body, null, 2));
-        console.log("Query:", JSON.stringify(req.query, null, 2));
-        console.log("Params:", JSON.stringify(req.params, null, 2));
-        
         const availableTimes = await getAvailableTimes(req.body.dates, req.body.businessConsultantIds, req.body.serviceId);
-        console.log("🚀 Returning available times:", JSON.stringify(availableTimes, null, 2));
         res.status(200).json(availableTimes);
     } catch (error) {
         console.error("❌ Error in getAvailableTimesController:", error.message);
@@ -95,12 +86,7 @@ const getAvailableTimesController = async (req, res) => {
 
 const getConsultantsByServiceController = async (req, res) => {
     try {
-        console.log('🔍 getConsultantsByServiceController called');
-        console.log('- Service ID:', req.params.serviceId);
-        console.log('- User from token:', req.client);
-        
         const consultants = await getConsultantsByService(req.params.serviceId);
-        console.log('✅ Found consultants:', consultants.length);
         res.status(200).json(consultants);
     } catch (error) {
         console.error("❌ Error in getConsultantsByServiceController:", error.message);

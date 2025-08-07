@@ -187,7 +187,7 @@ const schemas = {
         startTime: joi.string().pattern(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
         endTime: joi.string().pattern(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/).optional(),
         notes: joi.string().max(1000).allow('').optional(),
-        status: joi.string().valid('scheduled', 'completed', 'cancelled').optional()
+        status: joi.string().valid('pending', 'confirmed', 'completed', 'cancelled', 'booked').optional()
     }).min(1) // לפחות שדה אחד נדרש
 };
 
@@ -239,7 +239,6 @@ const validateId = (req, res, next) => {
             const id = parseInt(req.params[param]);
             
             if (isNaN(id) || id <= 0) {
-                console.log(`❌ Invalid ${param}:`, req.params[param]);
                 return res.status(400).json({
                     error: 'Invalid ID',
                     message: 'מזהה לא תקין',
@@ -249,12 +248,10 @@ const validateId = (req, res, next) => {
             
             req.params[param] = id;
             hasValidId = true;
-            console.log(`✅ Valid ${param}:`, id);
         }
     }
     
     if (!hasValidId) {
-        console.log('❌ No ID parameter found');
         return res.status(400).json({
             error: 'Missing ID',
             message: 'חסר מזהה',

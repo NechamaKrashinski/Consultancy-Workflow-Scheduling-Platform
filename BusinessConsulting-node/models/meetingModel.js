@@ -34,8 +34,8 @@ const Meeting = BusinessConsulting.define('Meeting', {
         allowNull: false
     },
     status: {
-        type: DataTypes.ENUM('booked','confirmed','cancelled'),
-        defaultValue: 'booked'
+        type: DataTypes.ENUM('pending','booked','confirmed','completed','cancelled'),
+        defaultValue: 'confirmed'  // אישור מיידי
     },
     notes: {
         type: DataTypes.STRING,

@@ -59,11 +59,15 @@ const port = process.env.PORT || 3000;
 app.use(generalLimiter);
 app.use(cors());
 app.use(express.json());
+
+// Static files serving - הגשת קבצים סטטיים
+app.use('/api/uploads', express.static('uploads'));
+
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 // Routes
 app.use('/login', loginRouter);
 // app.use(authenticateToken); 
-app.use('/profile', profileRouter);
+app.use('/api/profile', profileRouter);
 app.use('/consultant-service', consultantServiceRouter);
 app.use('/business-details', businessDetailRoutes);
 app.use('/clients', clientRoutes);
@@ -72,6 +76,7 @@ app.use('/business-consultants', businessConsultantRoutes);
 app.use('/meetings', meetingRoutes); 
 // app.use('/meeting', meetingRoutes);
 app.use('/services', serviceRoutes);
+app.use('/api/uploads', require('./routers/uploadRouter')); // העלאת קבצים
 
 const startServer = async () => {
     try {
@@ -89,6 +94,52 @@ const startServer = async () => {
 
         // Sync models here
         await BusinessConsulting.sync({ force: false }); 
+        
+        // Update CHECK constraint for Meeting status if needed
+        try {
+            await BusinessConsulting.query(`
+                IF EXISTS (SELECT * FROM sys.check_constraints WHERE name = 'CK__Meeting__status__51300E55')
+                BEGIN
+                    ALTER TABLE Meeting DROP CONSTRAINT CK__Meeting__status__51300E55;
+                END
+                
+                IF NOT EXISTS (SELECT * FROM sys.check_constraints WHERE name = 'CK_Meeting_status_updated')
+                BEGIN
+                    ALTER TABLE Meeting ADD CONSTRAINT CK_Meeting_status_updated 
+                    CHECK (status IN ('pending', 'booked', 'confirmed', 'completed', 'cancelled'));
+                END
+            `);
+        } catch (constraintError) {
+            // Constraint already exists or update not needed
+        }
+
+        // Add profile_image columns if they don't exist
+        try {
+            // Check and add profile_image column to Client table
+            await BusinessConsulting.query(`
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                              WHERE TABLE_NAME = 'Client' AND COLUMN_NAME = 'profile_image')
+                BEGIN
+                    ALTER TABLE Client ADD profile_image NVARCHAR(255) NULL;
+                END
+            `);
+
+            // Check and add profile_image column to BusinessConsultant table
+            await BusinessConsulting.query(`
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                              WHERE TABLE_NAME = 'BusinessConsultant' AND COLUMN_NAME = 'profile_image')
+                BEGIN
+                    ALTER TABLE BusinessConsultant ADD profile_image NVARCHAR(255) NULL;
+                END
+            `);
+
+            logger.database.connection('columns-updated', {
+                message: 'Profile image columns added successfully'
+            });
+        } catch (columnError) {
+            logger.error('Error adding profile_image columns:', columnError);
+        }
+        
         logger.database.connection('synchronized', {
             message: 'All models synchronized successfully'
         });

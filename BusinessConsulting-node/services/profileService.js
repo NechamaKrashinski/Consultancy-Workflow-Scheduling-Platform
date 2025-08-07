@@ -17,7 +17,10 @@ const getProfile = async (token) => {
         }
 
         if (role === 'manager') {
-            const businessConsultant = await BusinessConsultant.findOne({ where: { email: email } });
+            const businessConsultant = await BusinessConsultant.findOne({ 
+                where: { email: email },
+                attributes: ['id', 'name', 'email', 'role', 'profile_image'] // רק השדות שקיימים
+            });
             if (!businessConsultant) {
                 throw new Error('Manager not found');
             }
@@ -27,10 +30,14 @@ const getProfile = async (token) => {
                 phone: businessConsultant.phone,
                 email: businessConsultant.email,
                 role: 'manager',
+                profile_image: businessConsultant.profile_image || null
             };
         }
 
-        const client = await Client.findOne({ where: { email: email } });
+        const client = await Client.findOne({ 
+            where: { email: email },
+            attributes: ['id', 'name', 'email', 'phone', 'profile_image'] // רק השדות שקיימים
+        });
         if (!client) {
             throw new Error('Client not found');
         }
@@ -41,6 +48,7 @@ const getProfile = async (token) => {
             phone: client.phone,
             email: client.email,
             role: 'client',
+            profile_image: client.profile_image || null
         };
     } catch (error) {
         throw error;

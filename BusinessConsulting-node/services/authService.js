@@ -2,8 +2,12 @@ const { Client, BusinessConsultant, ConsultantService } = require('../models/ass
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
-const generateToken = (email, role) => {
-    return jwt.sign({ email, role }, process.env.JWT_SECRET, {
+const generateToken = (user) => {
+    return jwt.sign({ 
+        id: user.id,
+        email: user.email, 
+        role: user.role 
+    }, process.env.JWT_SECRET, {
         expiresIn: process.env.JWT_EXPIRATION,
     });
 };
@@ -50,12 +54,18 @@ const login = async (data) => {
         throw new Error('Please provide email and password');
     }
 
-    const manager = await BusinessConsultant.findOne({ where: { email: email } });
+    const manager = await BusinessConsultant.findOne({ 
+        where: { email: email },
+        attributes: ['id', 'name', 'email', 'password', 'role'] // ללא profile_image בינתיים
+    });
     if (manager && await bcrypt.compare(password, manager.password)) {
         return generateToken(manager.email, 'manager');
     }
 
-    const client = await Client.findOne({ where: { email: email } });
+    const client = await Client.findOne({ 
+        where: { email: email },
+        attributes: ['id', 'name', 'email', 'password'] // ללא profile_image בינתיים
+    });
     if (!client || !(await bcrypt.compare(password, client.password))) {
         throw new Error('Invalid email or password');
     }
@@ -91,7 +101,6 @@ const registerBusinessConsultant = async (data) => {
         password: hashedPassword,
         role: role || "consultant"
     });
-    console.log('Manager created:', manager);
     
 
     if (!manager) {

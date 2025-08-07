@@ -1,17 +1,10 @@
 const { Meeting, Service, Client, BusinessHours, BusinessConsultant, ConsultantService } = require('../models/associations.js');
 const { Sequelize, Op } = require('sequelize');
+const { sendMeetingConfirmation, sendConsultantNotification } = require('./emailService');
 
 // פונקציות ניהול פגישות
 const createMeeting = async (businessHourId, serviceId, clientId, date, startTime, endTime, notes = '') => {
     // 1. בדיקות תקינות של הפרמטרים
-    console.log("Creating meeting with parameters:");
-    console.log("businessHourId:", businessHourId);
-    console.log("serviceId:", serviceId);
-    console.log("clientId:", clientId);
-    console.log("date:", date);
-    console.log("startTime:", startTime);
-    console.log("endTime:", endTime);
-    
     if (!businessHourId || !date || !startTime || !endTime || !serviceId || !clientId) {
         throw new Error('All parameters are required.');
     }
@@ -75,10 +68,6 @@ const createMeeting = async (businessHourId, serviceId, clientId, date, startTim
     const endTimeForComparison = parseTimeForComparison(endTime);
     const meetingDate = parseDate(date);
     
-    console.log("Time formats - String:", startTimeString, endTimeString);
-    console.log("For comparison:", startTimeForComparison, endTimeForComparison);
-    console.log("Meeting date:", meetingDate);
-    
     // 6. בדיקה ישירה במסד נתונים - הגנה נגד duplicates
     const existingMeeting = await Meeting.findOne({
         where: {
@@ -124,13 +113,6 @@ const createMeeting = async (businessHourId, serviceId, clientId, date, startTim
     });
 
     if (overlappingMeetings.length > 0) {
-        console.log("Overlapping meetings found:", overlappingMeetings.map(m => ({
-            id: m.id,
-            date: m.date,
-            start_time: m.start_time,
-            end_time: m.end_time,
-            status: m.status
-        })));
         throw new Error(`This time slot conflicts with an existing meeting. Found ${overlappingMeetings.length} conflicting meeting(s).`);
     }
 
@@ -142,15 +124,78 @@ const createMeeting = async (businessHourId, serviceId, clientId, date, startTim
         date: meetingDate,
         start_time: startTimeString,  // שמירה כ-string
         end_time: endTimeString,      // שמירה כ-string
-        status: 'booked',
+        status: 'confirmed',  // אישור מיידי - היועץ יכול לבטל/לשנות תוך 24 שעות
         notes: notes,
     });
+
+    // 9. שליחת מיילים (ללא חסימה - אסינכרוני)
+    try {
+        // הכנת פרטי הפגישה למייל
+        const meetingDetails = {
+            clientName: client.name,
+            consultantName: businessConsultant.name,
+            serviceName: serviceExists.name,
+            date: meetingDate.toLocaleDateString('he-IL'),
+            startTime: startTimeString,
+            endTime: endTimeString,
+            notes: notes,
+            clientPhone: client.phone
+        };
+
+        // שליחת מייל אישור ללקוח (ללא await - לא רוצים לחכות)
+        sendMeetingConfirmation(client.email, meetingDetails)
+            .then(result => {
+                if (result.success) {
+                    console.log('✅ Email confirmation sent to client:', client.email);
+                } else {
+                    console.error('❌ Failed to send email to client:', result.error);
+                }
+            });
+
+        // שליחת מייל התראה ליועץ (ללא await - לא רוצים לחכות)
+        sendConsultantNotification(businessConsultant.email, meetingDetails)
+            .then(result => {
+                if (result.success) {
+                    console.log('✅ Notification sent to consultant:', businessConsultant.email);
+                } else {
+                    console.error('❌ Failed to send notification to consultant:', result.error);
+                }
+            });
+
+    } catch (emailError) {
+        // אם יש שגיאה במייל - לא נכשיל את יצירת הפגישה
+        console.error('⚠️ Email service error (meeting still created):', emailError);
+    }
 
     return meeting; // מחזיר את הפגישה שנוצרה
 };
 
 const updateMeeting = async (id, meetingData) => {
     await Meeting.update(meetingData, { where: { id } });
+    
+    // החזרת הפגישה המעודכנת עם כל הקשרים
+    return await Meeting.findByPk(id, {
+        include: [
+            {
+                model: Service,
+                attributes: ['name', 'price', 'duration']
+            },
+            {
+                model: Client,
+                attributes: ['name', 'email']
+            },
+            {
+                model: BusinessHours,
+                attributes: ['business_consultant_id'],
+                include: [
+                    {
+                        model: BusinessConsultant,
+                        attributes: ['id', 'name', 'email']
+                    }
+                ]
+            }
+        ]
+    });
 };
 
 const deleteMeeting = async (id) => {
@@ -200,56 +245,7 @@ const getConsultantsByService = async (serviceId) => {
 };
 
 
-
-// פונקציות לקבלת שעות עסקים ופגישות
-// const getBusinessHours = async (businessConsultantId, formattedDate) => {
-//     console.log("Getting business hours for consultant ID:", businessConsultantId, "on date:", formattedDate);
-//     let formattedBusinessHours = [];
-//     try {
-//     // const businessHours = await BusinessHours.findAll({
-//     //     where:{
-//     //         business_consultant_id: businessConsultantId,
-//     //         date: formattedDate,
-//     //         is_active: true
-//     //     }
-//     // });
-
-//    const businessHours = await BusinessHours.findAll({
-//     where: {
-//         business_consultant_id: businessConsultantId,
-//         date: formattedDate,
-//         is_active: true
-//     }
-//     });
-
-//     // המרה של start_time ו-end_time לאחר קבלת התוצאות
-//     formattedBusinessHours = businessHours.map(hour => ({
-//         id: hour.id,
-//         business_consultant_id: hour.business_consultant_id,
-//         date: hour.date,
-//         start_time: hour.start_time.toISOString().substr(11, 8), // חיתוך השעה
-//         end_time: hour.end_time.toISOString().substr(11, 8), // חיתוך השעה
-//         is_active: hour.is_active
-//     }));
-
-//     formattedBusinessHours.forEach(hour => {
-        
-//         console.log("/////////////////////", JSON.stringify(hour, null, 2)); // המרה ל-JSON
-//     });
-// } catch (error) {
-//     console.error('Error fetching business hours:', error);
-// }
-
-//     return await formattedBusinessHours.findAll({
-//         where: {
-//             business_consultant_id: businessConsultantId,
-//             date: formattedDate,
-//             is_active: true
-//         }
-//     });
-// };
 const getBusinessHours = async (businessConsultantId, formattedDate) => {
-    console.log("Getting business hours for consultant ID:", businessConsultantId, "on date:", formattedDate);
     let formattedBusinessHours = [];
     try {
         const businessHours = await BusinessHours.findAll({
@@ -269,10 +265,6 @@ const getBusinessHours = async (businessConsultantId, formattedDate) => {
             end_time: hour.end_time.toISOString().substr(11, 8), // חיתוך השעה
             is_active: hour.is_active
         }));
-
-        formattedBusinessHours.forEach(hour => {
-            console.log("/////////////////////", JSON.stringify(hour, null, 2)); // המרה ל-JSON
-        });
     } catch (error) {
         console.error('Error fetching business hours:', error);
     }
@@ -282,26 +274,7 @@ const getBusinessHours = async (businessConsultantId, formattedDate) => {
 
 
 const getBookedMeetings = async (formattedDate, businessHours) => {
-    console.log('🔍 Checking booked meetings for date:', formattedDate);
-    console.log('🔍 Business hours to check:', businessHours.map(h => h.id));
-    
-    const bookedMeetings = await Meeting.findAll({
-        where: {
-            date: formattedDate,
-            business_hour_id: businessHours.map(hour => hour.id),
-            status: ['booked', 'confirmed']
-        }
-    });
-    
-    console.log('🔍 Found booked meetings:', bookedMeetings.map(m => ({
-        id: m.id,
-        business_hour_id: m.business_hour_id,
-        start_time: m.start_time,
-        end_time: m.end_time,
-        status: m.status
-    })));
-    
-    return bookedMeetings;
+    // פונקציה להמרת זמן מ-string ל-minutes מתחילת היום    return bookedMeetings;
 };
 
 // const calculateAvailableTimes = (businessHours, bookedTimes) => {
@@ -338,11 +311,7 @@ const getBookedMeetings = async (formattedDate, businessHours) => {
 
 const calculateAvailableTimes = (businessHours, bookedTimes, serviceDurationMinutes = 30) => {
     const availableTimes = [];
-    console.log("📅 Calculating available times based on business hours and booked times");
-    console.log("🏢 Business hours:", businessHours);
-    console.log("📝 Booked times:", bookedTimes);
-    console.log("⏱️ Service duration:", serviceDurationMinutes, "minutes");
-    
+  
     // פונקציה להמרת זמן מ-string ל-minutes מתחילת היום
     const timeToMinutes = (timeString) => {
         // אם זה Date object, נוציא רק את החלק של השעה

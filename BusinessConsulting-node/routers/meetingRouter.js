@@ -16,7 +16,7 @@ const {
 router.post('/', meetingLimiter, sanitizeInput, validate('createMeeting'), createMeetingController);
 router.get('/client/:clientId', apiLimiter, validateId, getMeetingsController);
 router.get('/client', apiLimiter, authenticateToken, getMeetingsController); // עבור לקוח מ-token
-router.get('/manager', apiLimiter, getMeetingsController); // עבור מנהלים
+router.get('/manager', apiLimiter, authenticateToken, getMeetingsController); // עבור מנהלים - עם authentication
 router.put('/:id', meetingLimiter, validateId, sanitizeInput, validate('updateMeeting'), updateMeetingController);
 router.delete('/:id', meetingLimiter, validateId, deleteMeetingController);
 router.post('/available-times', apiLimiter, sanitizeInput, getAvailableTimesController);

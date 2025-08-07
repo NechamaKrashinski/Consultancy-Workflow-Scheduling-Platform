@@ -23,9 +23,33 @@ const getMeetingsController = async (req, res) => {
     try {
         let clientId = req.params.clientId || null;
         
-        // אם אין clientId בפרמטרים, נשתמש בלקוח מהtoken
-        if (!clientId && req.client && req.client.role === 'client') {
-            clientId = req.client.id;
+        // בדיקת אימות משתמש
+        if (req.client) {
+            // אם המשתמש הוא לקוח, הוא יכול לראות רק את הפגישות שלו
+            if (req.client.role === 'client') {
+                // אם המסלול הוא /client/:clientId, נוודא שהלקוח מבקש את הפגישות שלו בלבד
+                if (req.params.clientId && req.params.clientId !== req.client.id) {
+                    return res.status(403).json({ message: 'Access denied: You can only view your own meetings' });
+                }
+                
+                // אם המסלול הוא /client או /manager, נקבע את clientId לפי הטוקן
+                if (!clientId) {
+                    // נצטרך לחפש את ה-ID לפי המייל
+                    const { Client } = require('../models/associations.js');
+                    const client = await Client.findOne({ where: { email: req.client.email } });
+                    if (!client) {
+                        return res.status(404).json({ message: 'Client not found' });
+                    }
+                    clientId = client.id;
+                }
+            }
+            // אם המשתמש הוא מנהל, הוא יכול לראות את כל הפגישות
+            else if (req.client.role === 'manager') {
+                // מנהלים יכולים לראות הכל - clientId יישאר null
+                if (req.route.path === '/manager') {
+                    clientId = null; // מנהלים רואים הכל
+                }
+            }
         }
         
         const meetings = await getMeetings(clientId);

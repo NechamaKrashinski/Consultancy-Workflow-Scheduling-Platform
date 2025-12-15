@@ -6,7 +6,7 @@ export * from './filters';
 import type { MeetingStatus } from './filters';
 
 // UI Types
-export type TabId = 'overview' | 'services' | 'meetings' | 'consultant-linking';
+export type TabId = 'overview' | 'services' | 'meetings' | 'consultant-linking' | 'upload-files' | 'view-profile';
 
 // Error handling types
 export interface ApiErrorResponse {

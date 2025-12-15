@@ -12,27 +12,31 @@ const getProfile = async (token) => {
         const email = decoded.email;
         const role = decoded.role;
 
-        if (role !== 'client' && role !== 'manager') {
+        console.log(decoded);
+
+        if (role !== 'client' && role !== 'manager' && role !== 'consultant') {
             throw new Error('Access denied');
         }
-
-        if (role === 'manager') {
+        if (role === 'manager' || role === 'consultant') {
             const businessConsultant = await BusinessConsultant.findOne({ 
-                where: { email: email },
-                attributes: ['id', 'name', 'email', 'role', 'profile_image'] // רק השדות שקיימים
+                where: { email },
+                attributes: ['id', 'name', 'email', 'role', 'profile_image', /*'phone'*/]
             });
             if (!businessConsultant) {
-                throw new Error('Manager not found');
+                throw new Error('BusinessConsultant not found');
             }
             return {
                 id: businessConsultant.id,
                 name: businessConsultant.name,
                 phone: businessConsultant.phone,
                 email: businessConsultant.email,
-                role: 'manager',
+                role: businessConsultant.role, // ישאיר את זה כפי שהוגדר
                 profile_image: businessConsultant.profile_image || null
             };
         }
+
+        
+        
 
         const client = await Client.findOne({ 
             where: { email: email },

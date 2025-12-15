@@ -3,7 +3,7 @@ import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { fetchServices } from '../../store/slices/servicesSlice';
 import { fetchClientMeetings } from '../../store/slices/meetingsSlice';
 import { logout } from '../../store/slices/authSlice';
-import { LogOut, Calendar, Clock, CheckCircle, User, ArrowLeft } from 'lucide-react';
+import { LogOut, Calendar, Clock, CheckCircle, User, ArrowLeft, Upload } from 'lucide-react';
 import { Service, BusinessConsultant } from '../../types';
 import { StatusFilter, DateFilter } from '../../types/filters';
 import { meetingsAPI } from '../../services/api';
@@ -12,9 +12,11 @@ import ConfirmationDialog from '../../components/ConfirmationDialog';
 import ServiceSearch from '../../components/ServiceSearch';
 import MeetingFiltersComponent from '../../components/MeetingFilters';
 import MeetingsList from '../../components/MeetingsList';
+import ProfileUploadPage from './ProfileUploadPage';
+import ProfileViewPage from '../ProfileViewPage';
 
 const ClientDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'book-meeting' | 'my-meetings'>('book-meeting');
+  const [activeTab, setActiveTab] = useState<'book-meeting' | 'my-meetings' | 'upload-files' | 'view-profile'>('book-meeting');
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   
@@ -48,6 +50,14 @@ const ClientDashboard: React.FC = () => {
     }
   }, [dispatch, activeTab]);
 
+  useEffect(() => {
+    console.log('availableSlots updated', availableSlots);
+  }, [availableSlots]); 
+
+  useEffect(() => {
+  console.log('🔹 availableSlots updated:', availableSlots);
+  }, [availableSlots]);
+ 
   const handleLogout = () => {
     setShowLogoutDialog(true);
   };
@@ -80,6 +90,7 @@ const ClientDashboard: React.FC = () => {
     
     try {
       const consultantsData = await meetingsAPI.getConsultantsByService(service.id.toString());
+      console.log('consultantsData', consultantsData);
       setConsultants(consultantsData);
       setStep('consultants');
     } catch (error) {
@@ -110,35 +121,66 @@ const ClientDashboard: React.FC = () => {
     }
   };
 
+
   const handleConsultantSelect = async (consultant: BusinessConsultant) => {
-    if (!selectedService) return;
-    
+    if (!selectedService) {
+      showError('בחר שירות', 'אנא בחר שירות לפני בחירת יועץ.');
+      return;
+    }
+  
     setSelectedConsultant(consultant);
     setIsBookingLoading(true);
-
+    
     try {
       const dates = getNext7Days();
-      const availableTimes = await meetingsAPI.getAvailableTimes(dates, [consultant.id]);
+      console.log(`🔎 Fetching times for consultant ${consultant.id} on dates:`, dates);
+
+      const availableTimes = await meetingsAPI.getAvailableTimes(
+        dates,
+        [consultant.id],
+        selectedService.id
+      );
+      
+      console.log('📦 Raw Available Times Response:', JSON.stringify(availableTimes, null, 2));
+      
+      // בדיקה האם האובייקט ריק
+      if (!availableTimes || Object.keys(availableTimes).length === 0) {
+          console.warn('⚠️ Server returned empty object for available times');
+      }
+
       setAvailableSlots(availableTimes);
       setStep('times');
+
     } catch (error) {
-      console.error('Error fetching available times:', error);
+      console.error('❌ Error fetching available times:', error);
+      showError('שגיאה בטעינת זמנים', 'לא ניתן לטעון את הזמנים הפנויים. אנא נסה שוב.');
     } finally {
       setIsBookingLoading(false);
     }
   };
 
+
   const getNext7Days = () => {
-    const dates = [];
-    for (let i = 1; i < 8; i++) { // Start from 1 to exclude today
-      const date = new Date();
-      date.setDate(date.getDate() + i);
-      dates.push(date.toISOString().split('T')[0]);
-    }
-    return dates;
+      const dates = [];
+      const today = new Date();
+
+      for (let i = 1; i < 8; i++) { 
+        const nextDate = new Date(today);
+        nextDate.setDate(today.getDate() + i);
+
+        // תיקון: יצירת מחרוזת תאריך מקומית ידנית כדי למנוע בעיות אזורי זמן
+        const year = nextDate.getFullYear();
+        const month = String(nextDate.getMonth() + 1).padStart(2, '0');
+        const day = String(nextDate.getDate()).padStart(2, '0');
+
+        dates.push(`${year}-${month}-${day}`);
+      }
+      console.log('📅 Generated Dates for query:', dates); // לוג לבדיקה
+      return dates;
   };
 
   const handleTimeSelect = (date: string, time: string, businessHourId: number) => {
+    console.log('Selected time:', date, time, businessHourId);
     setSelectedDate(date);
     setSelectedTime(time);
     setSelectedBusinessHourId(businessHourId);
@@ -146,20 +188,42 @@ const ClientDashboard: React.FC = () => {
   };
 
   const handleConfirmBooking = async () => {
-    if (!selectedService || !selectedConsultant || !selectedDate || !selectedTime || !selectedBusinessHourId) return;
+    // 1. וידוא שכל הנתונים קיימים
+    if (!selectedService || !selectedConsultant || !selectedDate || !selectedTime || !selectedBusinessHourId) {
+        showWarning('נתונים חסרים', 'אנא וודא שכל פרטי הפגישה נבחרו כראוי');
+        return;
+    }
 
     setIsBookingLoading(true);
-    
+
     try {
-      // בדיקה מחודשת של זמינות
-      const currentAvailableTimes = await meetingsAPI.getAvailableTimes([selectedDate], [selectedConsultant.id]);
-      const availableSlots = currentAvailableTimes[selectedConsultant.id]?.[selectedDate] || [];
-      const isStillAvailable = availableSlots.some((slot: { start: string; businessHourId: number }) => 
-        slot.start === selectedTime && slot.businessHourId === selectedBusinessHourId
+      console.log('🔄 Validating availability before booking...');
+      
+      // --- התיקון נמצא כאן: הוספנו את selectedService.id כפרמטר שלישי ---
+      const currentAvailableTimes = await meetingsAPI.getAvailableTimes(
+          [selectedDate], 
+          [selectedConsultant.id],
+          selectedService.id // <--- זה היה חסר!
       );
       
+      const availableSlots = currentAvailableTimes[selectedConsultant.id]?.[selectedDate] || [];
+      
+      // לוגיקה לבדיקת התאמה (בדיוק כמו שרצינו)
+      const isStillAvailable = availableSlots.some((slot: { start: string; businessHourId: number }) => {
+        // נרמול השעה (התעלמות משניות)
+        const serverTime = slot.start.toString().trim().substring(0, 5); 
+        const myTime = selectedTime.toString().trim().substring(0, 5);
+        
+        // נרמול ה-ID (השוואת מחרוזות)
+        // eslint-disable-next-line eqeqeq
+        const isIdMatch = slot.businessHourId == selectedBusinessHourId;
+
+        return serverTime === myTime && isIdMatch;
+      });
+      
       if (!isStillAvailable) {
-        showWarning('זמן תפוס', 'מצטערים, הזמן שבחרת כבר תפוס. אנא בחר זמן אחר.');
+        console.error('❌ Validation Failed. Slots from server:', availableSlots);
+        showWarning('זמן תפוס', 'הזמן שבחרת כבר אינו זמין (נתפס ברגעים אלו). אנא בחר זמן אחר.');
         await handleConsultantSelect(selectedConsultant);
         return;
       }
@@ -169,22 +233,47 @@ const ClientDashboard: React.FC = () => {
         return;
       }
 
+      // חישוב זמן סיום (שימוש בפונקציה החיצונית הקיימת בקובץ)
+      const calculatedEndTime = calculateEndTime(selectedTime, selectedService.duration);
+
       const meetingData = {
+        // CamelCase
         businessHourId: selectedBusinessHourId,
         serviceId: selectedService.id,
         clientId: user.id,
-        date: selectedDate,
+        consultantId: selectedConsultant.id,
         startTime: selectedTime,
-        endTime: calculateEndTime(selectedTime, selectedService.duration),
-        notes: notes
+        endTime: calculatedEndTime,
+        
+        // snake_case לגיבוי לשרת
+        business_hour_id: selectedBusinessHourId,
+        service_id: selectedService.id,
+        client_id: user.id,
+        consultant_id: selectedConsultant.id,
+        start_time: selectedTime,
+        end_time: calculatedEndTime,
+        
+        date: selectedDate,
+        notes: notes || ''
       };
 
+      console.log('🚀 Sending confirmed booking:', meetingData);
+
       await meetingsAPI.createMeeting(meetingData);
+      
       showSuccess('פגישה נוצרה בהצלחה!', 'הפגישה שלך נוספה למערכת. תקבל אישור בקרוב.');
       setStep('success');
-    } catch (error) {
-      console.error('Error creating meeting:', error);
-      showError('שגיאה ביצירת פגישה', 'לא ניתן היה ליצור את הפגישה. אנא נסה שוב.');
+
+    } catch (error: any) {
+      console.error('❌ Error creating meeting:', error);
+      
+      if (error.response) {
+          console.error('Server Data:', error.response.data); 
+          const msg = error.response.data.message || error.response.statusText;
+          showError('שגיאת שרת', `השרת לא אישר את הפגישה: ${msg}`);
+      } else {
+          showError('שגיאה ביצירת פגישה', 'לא ניתן היה ליצור את הפגישה. אנא נסה שוב.');
+      }
     } finally {
       setIsBookingLoading(false);
     }
@@ -266,6 +355,8 @@ const ClientDashboard: React.FC = () => {
   const tabs = [
     { id: 'book-meeting', label: 'Book Meeting', icon: Calendar },
     { id: 'my-meetings', label: 'My Meetings', icon: Clock },
+    { id: 'upload-files', label: 'Upload Files', icon: Upload },
+    { id: 'view-profile', label: 'My Profile', icon: User },
   ];
 
   return (
@@ -302,7 +393,7 @@ const ClientDashboard: React.FC = () => {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as 'book-meeting' | 'my-meetings')}
+                onClick={() => setActiveTab(tab.id as 'book-meeting' | 'my-meetings' | 'upload-files')}
                 className={`flex-1 flex items-center justify-center px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                   activeTab === tab.id
                     ? 'bg-blue-600 text-white shadow-lg'
@@ -390,7 +481,7 @@ const ClientDashboard: React.FC = () => {
             )}
 
             {/* Step 3: Select Time */}
-            {step === 'times' && (
+            {step === 'times' && selectedService && selectedConsultant && (
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -578,6 +669,18 @@ const ClientDashboard: React.FC = () => {
               onClearFilters={clearFilters}
               hasActiveFilters={searchQuery !== '' || statusFilter !== 'all' || dateFilter !== 'all'}
             />
+          </div>
+        )}
+
+        {activeTab === 'upload-files' && (
+          <div>
+            <ProfileUploadPage />
+          </div>
+        )}
+
+        {activeTab === 'view-profile' && (
+          <div>
+            <ProfileViewPage />
           </div>
         )}
       </div>

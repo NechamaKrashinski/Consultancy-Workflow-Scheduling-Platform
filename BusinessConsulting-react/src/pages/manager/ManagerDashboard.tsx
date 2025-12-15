@@ -5,10 +5,12 @@ import { fetchManagerMeetings } from '../../store/slices/meetingsSlice';
 import { fetchConsultants } from '../../store/slices/businessConsultantSlice';
 import { logout } from '../../store/slices/authSlice';
 import { TabId } from '../../types';
-import { LogOut, BarChart3, Calendar, Settings, Users } from 'lucide-react';
+import { LogOut, BarChart3, Calendar, Settings, Users, Upload, User } from 'lucide-react';
 import ServicesPage from './ServicesPage';
 import MeetingsPage from './MeetingsPage';
 import ConsultantLinking from './ConsultantService';
+import ManagerUploadPage from './ManagerUploadPage';
+import ProfileViewPage from '../ProfileViewPage';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import ConfirmationDialog from '../../components/ConfirmationDialog';
 import { useToast } from '../../components/ToastProvider';
@@ -105,7 +107,9 @@ const ManagerDashboard: React.FC = () => {
     { id: 'overview', name: 'Overview', icon: BarChart3 },
     { id: 'services', name: 'Services', icon: Settings },
     { id: 'meetings', name: 'Meetings', icon: Calendar },
-    { id: 'consultant-linking', name: 'Consultant Linking', icon: Users }
+    { id: 'consultant-linking', name: 'Consultant Linking', icon: Users },
+    { id: 'upload-files', name: 'Upload Files', icon: Upload },
+    { id: 'view-profile', name: 'My Profile', icon: User }
   ];
 
   return (
@@ -237,6 +241,12 @@ const ManagerDashboard: React.FC = () => {
 
         {/* Consultant Linking Tab */}
         {activeTab === 'consultant-linking' && <ConsultantLinking />}
+
+        {/* Upload Files Tab */}
+        {activeTab === 'upload-files' && <ManagerUploadPage />}
+
+        {/* Profile View Tab */}
+        {activeTab === 'view-profile' && <ProfileViewPage />}
       </div>
 
       {/* Logout Confirmation Dialog */}

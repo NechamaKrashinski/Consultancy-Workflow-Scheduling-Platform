@@ -62,28 +62,32 @@ const BookingPage: React.FC = () => {
   };
 
   const handleConsultantSelect = async (consultant: Consultant) => {
-    if (!selectedService) return;
-    
+    if (!selectedService) {
+      showError('בחר שירות', 'אנא בחר שירות לפני בחירת יועץ.');
+      return;
+    }
+
     setSelectedConsultant(consultant);
     setIsLoading(true);
 
     try {
-      // קבלת זמנים פנויים ליועץ הנבחר
       const dates = getNext7Days();
       const availableTimes = await meetingsAPI.getAvailableTimes(
         dates,
         [consultant.id],
         selectedService.id
       );
-      
+
       setAvailableSlots(availableTimes);
       setStep('times');
     } catch (error) {
       console.error('Error fetching available times:', error);
+      showError('שגיאה בטעינת זמנים', 'לא ניתן לטעון את הזמנים הפנויים. אנא נסה שוב.');
     } finally {
       setIsLoading(false);
     }
   };
+
 
   const getNext7Days = () => {
     const dates = [];
@@ -152,8 +156,8 @@ const BookingPage: React.FC = () => {
       try {
         await meetingsAPI.createMeeting(meetingData);
         showSuccess(
-          'פגישה נקבעה בהצלחה',
-          'הפגישה שלך נקבעה בהצלחה!'
+          'פגישה אושרה מיידית! 🎉',
+          'הפגישה שלך אושרה ונקבעה בהצלחה! היועץ יכול לעדכן אם יש צורך בשינויים.'
         );
         setStep('success');
       } catch (error: unknown) {
@@ -320,7 +324,7 @@ const BookingPage: React.FC = () => {
         )}
 
         {/* Step 3: Select Time */}
-        {step === 'times' && (
+        {step === 'times' && selectedService && selectedConsultant && (
           <div className="space-y-6">
             <div>
               <h2 className="text-2xl font-semibold text-gray-900">Choose Date & Time</h2>
@@ -441,21 +445,21 @@ const BookingPage: React.FC = () => {
           <div className="text-center py-12">
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 border border-white/20">
               <CheckCircle className="h-16 w-16 text-emerald-600 mx-auto mb-4" />
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">Booking Successful!</h2>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">פגישה אושרה מיידית! 🎉</h2>
               <p className="text-gray-600 mb-6">
-                Your meeting has been booked successfully. You will receive a confirmation email shortly.
+                הפגישה שלך אושרה ונקבעה בהצלחה! תקבל אישור במייל בקרוב. היועץ יכול לעדכן אם יש צורך בשינויים.
               </p>
               <div className="space-y-2 text-sm text-gray-600 mb-6">
-                <p><strong>Service:</strong> {selectedService?.name}</p>
-                <p><strong>Consultant:</strong> {selectedConsultant?.name}</p>
-                <p><strong>Date:</strong> {new Date(selectedDate).toLocaleDateString('he-IL')}</p>
-                <p><strong>Time:</strong> {selectedTime}</p>
+                <p><strong>שירות:</strong> {selectedService?.name}</p>
+                <p><strong>יועץ:</strong> {selectedConsultant?.name}</p>
+                <p><strong>תאריך:</strong> {new Date(selectedDate).toLocaleDateString('he-IL')}</p>
+                <p><strong>שעה:</strong> {selectedTime}</p>
               </div>
               <button
                 onClick={resetBooking}
                 className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
               >
-                Book Another Meeting
+                הזמן פגישה נוספת
               </button>
             </div>
           </div>

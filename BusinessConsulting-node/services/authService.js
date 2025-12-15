@@ -6,7 +6,7 @@ const generateToken = (user) => {
     return jwt.sign({ 
         id: user.id,
         email: user.email, 
-        role: user.role 
+        role: user.role || 'client'
     }, process.env.JWT_SECRET, {
         expiresIn: process.env.JWT_EXPIRATION,
     });
@@ -44,7 +44,7 @@ const registerClient = async (data) => {
         throw new Error('Error creating client');
     }
 
-    return generateToken(client.email, 'client');
+    return generateToken(client);
 };
 
 const login = async (data) => {
@@ -59,7 +59,7 @@ const login = async (data) => {
         attributes: ['id', 'name', 'email', 'password', 'role'] // ללא profile_image בינתיים
     });
     if (manager && await bcrypt.compare(password, manager.password)) {
-        return generateToken(manager.email, 'manager');
+        return generateToken(manager);
     }
 
     const client = await Client.findOne({ 
@@ -70,7 +70,7 @@ const login = async (data) => {
         throw new Error('Invalid email or password');
     }
 
-    return generateToken(client.email, 'client');
+    return generateToken(client);
 };
 
 const registerBusinessConsultant = async (data) => {
@@ -107,7 +107,7 @@ const registerBusinessConsultant = async (data) => {
         throw new Error('Error creating manager');
     }
 
-    return generateToken(manager.email, 'manager');
+    return generateToken(manager);
 };
 
 module.exports = {

@@ -2,10 +2,11 @@ const profileService = require('../services/profileService');
 
 const getProfile = async (req, res) => {
     try {
-        
+        console.log("I hear---------------------")
         const token = req.headers['authorization']?.split(' ')[1];
         const profileData = await profileService.getProfile(token);
-        
+        console.log("I hear---------------------")
+
         return res.status(200).json(profileData);
     } catch (err) {
         console.error(err);

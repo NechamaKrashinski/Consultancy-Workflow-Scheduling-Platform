@@ -165,7 +165,12 @@ export const meetingsAPI = {
     return response.data;
   },
 
+ 
   getAvailableTimes: async (dates: string[], consultantIds: number[], serviceId?: number): Promise<AvailableSlots> => {
+     if (!serviceId) {
+    console.warn('Service ID is undefined, cannot fetch available times');
+    return {}; // או [], תלוי מה שאתה מצפה לקבל
+  }
     const response = await api.post('/meetings/available-times', {
       dates,
       businessConsultantIds: consultantIds,

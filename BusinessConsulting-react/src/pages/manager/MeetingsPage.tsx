@@ -87,17 +87,7 @@ const MeetingsPage: React.FC = () => {
   const filteredMeetings = useMemo(() => {
     let filtered = [...meetings];
     
-    // Debug: בואו נראה מה יש לנו במפגשים
-    console.log('All meetings:', meetings);
-    console.log('Consultant filter:', consultantFilter);
-    console.log('Available consultants:', consultants);
-    
-    // Debug: בואו נראה איך נראית פגישה אחת
-    if (meetings.length > 0) {
-      console.log('First meeting structure:', meetings[0]);
-      console.log('First meeting BusinessHour:', meetings[0].BusinessHour);
-      console.log('First meeting BusinessHour.BusinessConsultant:', meetings[0].BusinessHour?.BusinessConsultant);
-    }
+   
     
     // Search filter
     if (searchQuery.trim()) {
@@ -113,13 +103,11 @@ const MeetingsPage: React.FC = () => {
           meeting.date.includes(query)
         );
       });
-      console.log('After search filter:', filtered.length);
     }
     
     // Status filter
     if (statusFilter !== 'all') {
       filtered = filtered.filter(meeting => meeting.status === statusFilter);
-      console.log('After status filter:', filtered.length);
     }
     
     // Date filter
@@ -142,7 +130,6 @@ const MeetingsPage: React.FC = () => {
             return true;
         }
       });
-      console.log('After date filter:', filtered.length);
     }
     
     // Consultant filter

@@ -158,7 +158,7 @@ Endpoint summary (illustrative):
 |----------|--------|-------------|---------------|
 | `/login` | POST | User authentication | No |
 | `/login/register` | POST | Client registration | No |
-| `/login/add-manager` | POST | Consultant registration | No |
+| `/login/add-manager` | POST | Consultant registration | Yes |
 | `/meetings` | GET/POST | Meeting management | Yes |
 | `/services` | GET/POST | Service management | Yes |
 | `/business-hours` | GET/POST | Availability management | Yes |
@@ -625,7 +625,7 @@ npm install --save-dev jest supertest
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
---
+---
 
 ## 🙏 Acknowledgments
 

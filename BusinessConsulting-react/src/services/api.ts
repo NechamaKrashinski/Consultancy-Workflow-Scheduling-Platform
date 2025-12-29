@@ -10,6 +10,7 @@ import type {
   UpdateMeetingData,
   Meeting,
   BusinessConsultant,
+  AvailableSlots,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.API_BASE_URL || 'http://localhost:3000';
@@ -43,29 +44,36 @@ api.interceptors.response.use(
   }
 );
 //פונקציית מעטפת לקריאות api שלא דורשות slice
-const apiCallWrapper = async (apiCall: () => Promise<any>) => {
+const apiCallWrapper = async <T>(apiCall: () => Promise<T>): Promise<T> => {
   try {
     const response = await apiCall();
     return response;
   } catch (error) {
     console.error('API Error:', error);
     if (axios.isAxiosError(error) && error.response?.status === 409) {
-     
-    throw error; // אפשר להחזיר את השגיאה כדי שתוכל לטפל בה במקום אחר אם צריך
+      throw error; // אפשר להחזיר את השגיאה כדי שתוכל לטפל בה במקום אחר אם צריך
     }
+    throw error;
   }
 };
 // Auth API
 export const authAPI = {
   login: async (credentials: LoginCredentials): Promise<{ user: User; token: string }> => {
     const response = await api.post('/login', credentials);
-    return response.data;
+    // השרת מחזיר: { success: true, message: "...", data: { token: "...", loginTime: "..." } }
+    return { 
+      token: response.data.data.token,
+      user: {} as User // נמלא אחר כך מgetProfile
+    };
   },
 
   register: async (data: RegisterData): Promise<{ user: User; token: string }> => {
-    console.log('Registering user:', data);
     const response = await api.post('/login/register', data);
-    return response.data;
+    // השרת מחזיר: { success: true, message: "...", data: { token: "...", userType: "..." } }
+    return { 
+      token: response.data.data.token,
+      user: {} as User // נמלא אחר כך מgetProfile
+    };
   },
 
   loginWithGoogle: async (googleToken: string): Promise<{ user: User; token: string }> => {
@@ -84,7 +92,8 @@ export const authAPI = {
 
   getProfile: async (): Promise<User> => {
     const response = await api.get('/profile');
-    return response.data;
+    // נניח שהשרת מחזיר את הפרופיל ישירות או ב-response.data
+    return response.data.data || response.data;
   },
 };
 
@@ -101,7 +110,6 @@ export const servicesAPI = {
   },
 
   createService: async (data: CreateServiceData): Promise<Service> => {
-    console.log('Creating service:', data);
     const response = await api.post('/services', data);
     return response.data;
   },
@@ -152,15 +160,21 @@ export const meetingsAPI = {
     return response.data;
   },
 
-  getConsultantsByService: async (serviceId: string): Promise<any[]> => {
+  getConsultantsByService: async (serviceId: string): Promise<BusinessConsultant[]> => {
     const response = await api.get(`/meetings/consultants/${serviceId}`);
     return response.data;
   },
 
-  getAvailableTimes: async (dates: string[], consultantIds: number[]): Promise<any> => {
+ 
+  getAvailableTimes: async (dates: string[], consultantIds: number[], serviceId?: number): Promise<AvailableSlots> => {
+     if (!serviceId) {
+    console.warn('Service ID is undefined, cannot fetch available times');
+    return {}; // או [], תלוי מה שאתה מצפה לקבל
+  }
     const response = await api.post('/meetings/available-times', {
       dates,
-      businessConsultantIds: consultantIds
+      businessConsultantIds: consultantIds,
+      serviceId
     });
     return response.data;
   },

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { fetchServices } from '../../store/slices/servicesSlice';
-import { createMeeting } from '../../store/slices/meetingsSlice';
-import { Calendar, Clock, DollarSign, User, ArrowLeft, CheckCircle } from 'lucide-react';
-import { servicesAPI } from '../../services/api';
+import { Clock, DollarSign, User, ArrowLeft, CheckCircle } from 'lucide-react';
+import { Service } from '../../types';
+import { meetingsAPI } from '../../services/api';
+import { useToast } from '../../components/ToastProvider';
 
 interface Consultant {
   id: number;
@@ -24,8 +25,9 @@ interface AvailableSlots {
 }
 
 const BookingPage: React.FC = () => {
+  const { showSuccess, showError, showWarning } = useToast();
   const [step, setStep] = useState<'services' | 'consultants' | 'times' | 'confirm' | 'success'>('services');
-  const [selectedService, setSelectedService] = useState<any>(null);
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedConsultant, setSelectedConsultant] = useState<Consultant | null>(null);
   const [consultants, setConsultants] = useState<Consultant[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>('');
@@ -43,14 +45,13 @@ const BookingPage: React.FC = () => {
     dispatch(fetchServices());
   }, [dispatch]);
 
-  const handleServiceSelect = async (service: any) => {
+  const handleServiceSelect = async (service: Service) => {
     setSelectedService(service);
     setIsLoading(true);
     
     try {
       // קבלת יועצים לשירות הנבחר
-      const response = await fetch(`http://localhost:3000/meetings/consultants/${service.id}`);
-      const consultantsData = await response.json();
+      const consultantsData = await meetingsAPI.getConsultantsByService(service.id.toString());
       setConsultants(consultantsData);
       setStep('consultants');
     } catch (error) {
@@ -61,37 +62,32 @@ const BookingPage: React.FC = () => {
   };
 
   const handleConsultantSelect = async (consultant: Consultant) => {
+    if (!selectedService) {
+      showError('בחר שירות', 'אנא בחר שירות לפני בחירת יועץ.');
+      return;
+    }
+
     setSelectedConsultant(consultant);
     setIsLoading(true);
 
     try {
-      // קבלת זמנים פנויים ליועץ הנבחר
       const dates = getNext7Days();
-      const response = await fetch('http://localhost:3000/meetings/available-times', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          dates: dates,
-          businessConsultantIds: [consultant.id],
-          serviceId: selectedService.id
-        })
-      });
-      
-      const availableTimes = await response.json();
-      console.log('🔍 Available times received from server:', JSON.stringify(availableTimes, null, 2));
-      console.log('🔍 Consultant ID:', consultant.id);
-      console.log('🔍 Available slots structure:', Object.keys(availableTimes));
-      
+      const availableTimes = await meetingsAPI.getAvailableTimes(
+        dates,
+        [consultant.id],
+        selectedService.id
+      );
+
       setAvailableSlots(availableTimes);
       setStep('times');
     } catch (error) {
       console.error('Error fetching available times:', error);
+      showError('שגיאה בטעינת זמנים', 'לא ניתן לטעון את הזמנים הפנויים. אנא נסה שוב.');
     } finally {
       setIsLoading(false);
     }
   };
+
 
   const getNext7Days = () => {
     const dates = [];
@@ -116,33 +112,89 @@ const BookingPage: React.FC = () => {
     setIsLoading(true);
     
     try {
+      // בדיקה מחדש של זמינות לפני יצירת הפגישה
+      const currentAvailableTimes = await meetingsAPI.getAvailableTimes(
+        [selectedDate],
+        [selectedConsultant.id],
+        selectedService.id
+      );
+      
+      const availableSlots = currentAvailableTimes[selectedConsultant.id]?.[selectedDate] || [];
+      const isStillAvailable = availableSlots.some((slot: TimeSlot) => 
+        slot.start === selectedTime && slot.businessHourId === selectedBusinessHourId
+      );
+      
+      if (!isStillAvailable) {
+        showWarning(
+          'זמן תפוס',
+          'מצטערים, הזמן שבחרת כבר תפוס. אנא בחר זמן אחר.'
+        );
+        // רענון הזמנים הפנויים
+        await handleConsultantSelect(selectedConsultant);
+        return;
+      }
+
       // יצירת פגישה חדשה
+      if (!user?.id) {
+        showError(
+          'שגיאת משתמש',
+          'פרטי המשתמש לא נמצאו. אנא התחבר מחדש.'
+        );
+        return;
+      }
+
       const meetingData = {
         businessHourId: selectedBusinessHourId,
         serviceId: selectedService.id,
-        clientId: user?.id,
+        clientId: user.id,
         date: selectedDate,
         startTime: selectedTime,
         endTime: calculateEndTime(selectedTime, selectedService.duration),
         notes: notes
       };
 
-      const response = await fetch('http://localhost:3000/meetings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(meetingData)
-      });
-
-      if (response.ok) {
+      try {
+        await meetingsAPI.createMeeting(meetingData);
+        showSuccess(
+          'פגישה אושרה מיידית! 🎉',
+          'הפגישה שלך אושרה ונקבעה בהצלחה! היועץ יכול לעדכן אם יש צורך בשינויים.'
+        );
         setStep('success');
-      } else {
-        throw new Error('Failed to create meeting');
+      } catch (error: unknown) {
+        console.error('Server error:', error);
+        
+        // אם השגיאה היא שהזמן כבר תפוס, נרענן את הזמנים הפנויים
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('meeting already exists')) {
+          showWarning(
+            'זמן תפוס',
+            'מצטערים, הזמן שבחרת כבר תפוס. הזמנים הפנויים מתעדכנים...'
+          );
+          
+          // רענון הזמנים הפנויים עם קבלת נתונים עדכניים מהשרת
+          const dates = getNext7Days();
+          const refreshedAvailableTimes = await meetingsAPI.getAvailableTimes(
+            dates,
+            [selectedConsultant.id],
+            selectedService.id
+          );
+          
+          // עדכון ה-state עם הזמנים החדשים
+          setAvailableSlots(refreshedAvailableTimes);
+          setStep('times');
+        } else {
+          showError(
+            'שגיאה ביצירת פגישה',
+            'שגיאה ביצירת הפגישה. אנא נסה שוב.'
+          );
+        }
       }
     } catch (error) {
       console.error('Error creating meeting:', error);
+      showError(
+        'שגיאה ביצירת פגישה',
+        'שגיאה ביצירת הפגישה. אנא נסה שוב.'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -272,7 +324,7 @@ const BookingPage: React.FC = () => {
         )}
 
         {/* Step 3: Select Time */}
-        {step === 'times' && (
+        {step === 'times' && selectedService && selectedConsultant && (
           <div className="space-y-6">
             <div>
               <h2 className="text-2xl font-semibold text-gray-900">Choose Date & Time</h2>
@@ -289,14 +341,9 @@ const BookingPage: React.FC = () => {
               <div className="space-y-4">
                 {(() => {
                   const consultantSlots = availableSlots[selectedConsultant?.id || ''] || {};
-                  console.log('🔍 Consultant slots for display:', consultantSlots);
-                  console.log('🔍 Selected consultant ID:', selectedConsultant?.id);
-                  console.log('🔍 Available slots keys:', Object.keys(availableSlots));
                   
                   const slotsWithTimes = Object.entries(consultantSlots)
                     .filter(([, slots]) => slots && slots.length > 0);
-                  
-                  console.log('🔍 Filtered slots with times:', slotsWithTimes);
                   
                   return slotsWithTimes.map(([date, slots]) => (
                   <div key={date} className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
@@ -398,21 +445,21 @@ const BookingPage: React.FC = () => {
           <div className="text-center py-12">
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 border border-white/20">
               <CheckCircle className="h-16 w-16 text-emerald-600 mx-auto mb-4" />
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">Booking Successful!</h2>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">פגישה אושרה מיידית! 🎉</h2>
               <p className="text-gray-600 mb-6">
-                Your meeting has been booked successfully. You will receive a confirmation email shortly.
+                הפגישה שלך אושרה ונקבעה בהצלחה! תקבל אישור במייל בקרוב. היועץ יכול לעדכן אם יש צורך בשינויים.
               </p>
               <div className="space-y-2 text-sm text-gray-600 mb-6">
-                <p><strong>Service:</strong> {selectedService?.name}</p>
-                <p><strong>Consultant:</strong> {selectedConsultant?.name}</p>
-                <p><strong>Date:</strong> {new Date(selectedDate).toLocaleDateString('he-IL')}</p>
-                <p><strong>Time:</strong> {selectedTime}</p>
+                <p><strong>שירות:</strong> {selectedService?.name}</p>
+                <p><strong>יועץ:</strong> {selectedConsultant?.name}</p>
+                <p><strong>תאריך:</strong> {new Date(selectedDate).toLocaleDateString('he-IL')}</p>
+                <p><strong>שעה:</strong> {selectedTime}</p>
               </div>
               <button
                 onClick={resetBooking}
                 className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"
               >
-                Book Another Meeting
+                הזמן פגישה נוספת
               </button>
             </div>
           </div>

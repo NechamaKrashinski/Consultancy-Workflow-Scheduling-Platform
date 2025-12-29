@@ -2,8 +2,12 @@ const { Client, BusinessConsultant, ConsultantService } = require('../models/ass
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
-const generateToken = (email, role) => {
-    return jwt.sign({ email, role }, process.env.JWT_SECRET, {
+const generateToken = (user) => {
+    return jwt.sign({ 
+        id: user.id,
+        email: user.email, 
+        role: user.role || 'client'
+    }, process.env.JWT_SECRET, {
         expiresIn: process.env.JWT_EXPIRATION,
     });
 };
@@ -15,7 +19,8 @@ const registerClient = async (data) => {
         throw new Error('Please provide all required fields');
     }
 
-    if (/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d!@#$%^&*()]{6,}$/.test(password)) {
+    // תיקון הלוגיקה: אם הסיסמה לא עומדת בתנאים, זרוק שגיאה
+    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d!@#$%^&*()_+=\-~`[\]{}|\\:";'<>?,./]{6,}$/.test(password)) {
         throw new Error('Password must be at least 6 characters long and contain at least one uppercase letter, one lowercase letter, and one number');
     }
 
@@ -39,7 +44,7 @@ const registerClient = async (data) => {
         throw new Error('Error creating client');
     }
 
-    return generateToken(client.email, 'client');
+    return generateToken(client);
 };
 
 const login = async (data) => {
@@ -49,17 +54,23 @@ const login = async (data) => {
         throw new Error('Please provide email and password');
     }
 
-    const manager = await BusinessConsultant.findOne({ where: { email: email } });
+    const manager = await BusinessConsultant.findOne({ 
+        where: { email: email },
+        attributes: ['id', 'name', 'email', 'password', 'role'] // ללא profile_image בינתיים
+    });
     if (manager && await bcrypt.compare(password, manager.password)) {
-        return generateToken(manager.email, 'manager');
+        return generateToken(manager);
     }
 
-    const client = await Client.findOne({ where: { email: email } });
+    const client = await Client.findOne({ 
+        where: { email: email },
+        attributes: ['id', 'name', 'email', 'password'] // ללא profile_image בינתיים
+    });
     if (!client || !(await bcrypt.compare(password, client.password))) {
         throw new Error('Invalid email or password');
     }
 
-    return generateToken(client.email, 'client');
+    return generateToken(client);
 };
 
 const registerBusinessConsultant = async (data) => {
@@ -69,19 +80,10 @@ const registerBusinessConsultant = async (data) => {
         throw new Error('Please provide all required fields');
     }
 
-if (password.length < 6) {
-        throw new Error('Password must be at least 6 characters long');
+    // אותה validation כמו ב-registerClient - עקביות
+    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d!@#$%^&*()]{6,}$/.test(password)) {
+        throw new Error('Password must be at least 6 characters long and contain at least one uppercase letter, one lowercase letter, and one number');
     }
-    if (!/[a-z]/.test(password)) {
-        throw new Error('Password must contain at least one lowercase letter');
-    }
-    if (!/[A-Z]/.test(password)) {
-        throw new Error('Password must contain at least one uppercase letter');
-    }
-    if (!/\d/.test(password)) {
-        throw new Error('Password must contain at least one number');
-    }
-
 
     const existingBusinessConsultant = await BusinessConsultant.findOne({ where: { email } });
 
@@ -99,14 +101,13 @@ if (password.length < 6) {
         password: hashedPassword,
         role: role || "consultant"
     });
-    console.log('Manager created:', manager);
     
 
     if (!manager) {
         throw new Error('Error creating manager');
     }
 
-    return generateToken(manager.email, 'manager');
+    return generateToken(manager);
 };
 
 module.exports = {

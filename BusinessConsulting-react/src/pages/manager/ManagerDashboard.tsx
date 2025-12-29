@@ -1,55 +1,97 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { fetchServices } from '../../store/slices/servicesSlice';
-import { fetchMeetings } from '../../store/slices/meetingsSlice';
+import { fetchManagerMeetings } from '../../store/slices/meetingsSlice';
 import { fetchConsultants } from '../../store/slices/businessConsultantSlice';
-import { logoutUser } from '../../store/slices/authSlice';
-import { LogOut, BarChart3, Calendar, Settings, Users } from 'lucide-react';
+import { logout } from '../../store/slices/authSlice';
+import { TabId } from '../../types';
+import { LogOut, BarChart3, Calendar, Settings, Users, Upload, User } from 'lucide-react';
 import ServicesPage from './ServicesPage';
 import MeetingsPage from './MeetingsPage';
-import ConsultantLinking from './ConsultantService'; // ייבוא הקומפוננטה החדשה
+import ConsultantLinking from './ConsultantService';
+import ManagerUploadPage from './ManagerUploadPage';
+import ProfileViewPage from '../ProfileViewPage';
+import LoadingSpinner from '../../components/LoadingSpinner';
+import ConfirmationDialog from '../../components/ConfirmationDialog';
+import { useToast } from '../../components/ToastProvider';
 
 const ManagerDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'services' | 'meetings' | 'consultant-linking'>('overview'); // עדכון סוג ה-state
+  const { showSuccess } = useToast();
+  const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((state) => state.auth);
-  const { services } = useAppSelector((state) => state.services);
-  const { meetings } = useAppSelector((state) => state.meetings);
-  const { consultants } = useAppSelector((state) => state.consultants);
+  const { services, error: servicesError, isLoading: servicesLoading } = useAppSelector((state) => state.services);
+  const { meetings, error: meetingsError, isLoading: meetingsLoading } = useAppSelector((state) => state.meetings);
+  const { consultants, error: consultantsError, isLoading: consultantsLoading } = useAppSelector((state) => state.consultants);
 
   useEffect(() => {
     dispatch(fetchServices());
-    dispatch(fetchMeetings());
+    dispatch(fetchManagerMeetings());
     dispatch(fetchConsultants());
   }, [dispatch]);
 
+  // Performance optimization: מחשב את הfilters רק כשהmeetings משתנים
+  const activeMeetingsCount = useMemo(() => 
+    meetings.filter(apt => apt.status === 'booked').length, [meetings]
+  );
+  
+  const pendingApprovalsCount = useMemo(() => 
+    meetings.filter(apt => apt.status === 'pending').length, [meetings]
+  );
+
   const handleLogout = () => {
-    dispatch(logoutUser());
+    setShowLogoutDialog(true);
   };
+
+  const confirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await dispatch(logout()).unwrap();
+      showSuccess(
+        'התנתקות בוצעה',
+        'התנתקת בהצלחה מהמערכת'
+      );
+    } catch (_error) {
+      // אם יש שגיאה, עדיין נתנתק כי זה logout
+      dispatch(logout());
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutDialog(false);
+    }
+  };
+
+  const cancelLogout = () => {
+    setShowLogoutDialog(false);
+  };
+
+  // מצב טעינה כללי
+  const isDataLoading = servicesLoading || meetingsLoading || consultantsLoading;
 
   const stats = [
     {
       name: 'Total Services',
-      value: services.length,
+      value: servicesLoading ? '...' : services.length,
       icon: Settings,
       color: 'bg-blue-500'
     },
     {
       name: 'Active Meetings',
-      value: meetings.filter(apt => apt.status === 'booked').length,
+      value: meetingsLoading ? '...' : activeMeetingsCount,
       icon: Calendar,
       color: 'bg-emerald-500'
     },
     {
       name: 'Pending Approvals',
-      value: meetings.filter(apt => apt.status === 'available').length,
+      value: meetingsLoading ? '...' : pendingApprovalsCount,
       icon: Users,
       color: 'bg-amber-500'
     },
     {
       name: 'Total Consultants',
-      value: consultants.length, // עדכון למספר הקונסולטנטים
+      value: consultantsLoading ? '...' : consultants.length,
       icon: Users,
       color: 'bg-purple-500'
     },
@@ -61,11 +103,13 @@ const ManagerDashboard: React.FC = () => {
     }
   ];
 
-  const tabs = [
+  const tabs: { id: TabId; name: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'overview', name: 'Overview', icon: BarChart3 },
     { id: 'services', name: 'Services', icon: Settings },
     { id: 'meetings', name: 'Meetings', icon: Calendar },
-    { id: 'consultant-linking', name: 'Consultant Linking', icon: Users } // טאב חדש
+    { id: 'consultant-linking', name: 'Consultant Linking', icon: Users },
+    { id: 'upload-files', name: 'Upload Files', icon: Upload },
+    { id: 'view-profile', name: 'My Profile', icon: User }
   ];
 
   return (
@@ -103,7 +147,7 @@ const ManagerDashboard: React.FC = () => {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center px-6 py-3 text-sm font-medium rounded-lg transition-all ${
                     activeTab === tab.id
                       ? 'bg-blue-600 text-white shadow-lg'
@@ -118,9 +162,29 @@ const ManagerDashboard: React.FC = () => {
           </nav>
         </div>
 
+        {/* Error Display */}
+        {(servicesError || meetingsError || consultantsError) && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+            <h4 className="text-red-800 font-medium mb-2">Errors occurred:</h4>
+            <div className="space-y-1 text-sm text-red-700">
+              {servicesError && <p>• Services: {servicesError}</p>}
+              {meetingsError && <p>• Meetings: {meetingsError}</p>}
+              {consultantsError && <p>• Consultants: {consultantsError}</p>}
+            </div>
+          </div>
+        )}
+
         {/* Overview Tab */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
+            {isDataLoading && (
+              <LoadingSpinner 
+                size="lg" 
+                color="blue" 
+                text="טוען נתוני דשבורד..." 
+              />
+            )}
+            
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {stats.map((stat) => {
@@ -155,7 +219,7 @@ const ManagerDashboard: React.FC = () => {
                         <p className="text-sm text-gray-600">{meeting.date} at {meeting.start_time}</p>
                         <span className={`inline-flex px-2 py-1 text-xs rounded-full ${
                           meeting.status === 'booked' ? 'bg-emerald-100 text-emerald-800' :
-                          meeting.status === 'available' ? 'bg-amber-100 text-amber-800' :
+                          meeting.status === 'pending' ? 'bg-amber-100 text-amber-800' :
                           'bg-gray-100 text-gray-800'
                         }`}>
                           {meeting.status}
@@ -176,8 +240,27 @@ const ManagerDashboard: React.FC = () => {
         {activeTab === 'meetings' && <MeetingsPage />}
 
         {/* Consultant Linking Tab */}
-        {activeTab === 'consultant-linking' && <ConsultantLinking />} {/* הוספת הקומפוננטה החדשה */}
+        {activeTab === 'consultant-linking' && <ConsultantLinking />}
+
+        {/* Upload Files Tab */}
+        {activeTab === 'upload-files' && <ManagerUploadPage />}
+
+        {/* Profile View Tab */}
+        {activeTab === 'view-profile' && <ProfileViewPage />}
       </div>
+
+      {/* Logout Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={showLogoutDialog}
+        onClose={cancelLogout}
+        onConfirm={confirmLogout}
+        title="התנתקות מהמערכת"
+        message="האם אתה בטוח שברצונך להתנתק מהמערכת?"
+        confirmText="התנתק"
+        cancelText="ביטול"
+        type="warning"
+        isLoading={isLoggingOut}
+      />
     </div>
   );
 };

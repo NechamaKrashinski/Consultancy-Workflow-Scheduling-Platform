@@ -1,6 +1,5 @@
 const { DataTypes } = require('sequelize');
 const BusinessConsulting = require('../connection/dbConnection.js');
-const {Service,Client,BusinessHours} = require('./associations.js'); // Importing from associations.js
 
 const Meeting = BusinessConsulting.define('Meeting', {
     id: {
@@ -10,26 +9,17 @@ const Meeting = BusinessConsulting.define('Meeting', {
     },
     business_hour_id: {
         type: DataTypes.INTEGER,
-        allowNull: false,
-        references: {
-            model: BusinessHours,
-            key: 'id'
-        }
+        allowNull: false
+        // הreferences יוגדרו ב-associations.js
     },
     client_id: { 
-        type: DataTypes.INTEGER,
-        references: {
-            model: Client,
-            key: 'id'
-        }
+        type: DataTypes.INTEGER
+        // הreferences יוגדרו ב-associations.js
     },
     service_id: {
         type: DataTypes.INTEGER,
-        allowNull: true,
-        references: {
-            model: Service,
-            key: 'id'
-        }
+        allowNull: true
+        // הreferences יוגדרו ב-associations.js
     },
     date: {
         type: DataTypes.DATE,
@@ -44,8 +34,8 @@ const Meeting = BusinessConsulting.define('Meeting', {
         allowNull: false
     },
     status: {
-        type: DataTypes.ENUM('booked','confirmed','cancelled'),
-        defaultValue: 'booked'
+        type: DataTypes.ENUM('pending','booked','confirmed','completed','cancelled'),
+        defaultValue: 'confirmed'  // אישור מיידי
     },
     notes: {
         type: DataTypes.STRING,
@@ -56,10 +46,10 @@ const Meeting = BusinessConsulting.define('Meeting', {
                 msg: "The notes must be between 0 and 250 characters long."
             }
         }
-    },
+    }
 }, {
     tableName: 'Meeting',
-    timestamps: false,
+    timestamps: false
 });
 
 module.exports = Meeting;

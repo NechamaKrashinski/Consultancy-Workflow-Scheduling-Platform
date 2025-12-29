@@ -14,11 +14,11 @@ export const loginUser = createAsyncThunk(
   '/login',
   async (credentials: LoginCredentials, { rejectWithValue }) => {
     try {
-      const response = await authAPI.login(credentials);
-      localStorage.setItem('token', response.token);
+      const loginResponse = await authAPI.login(credentials);
+      localStorage.setItem('token', loginResponse.token);
       const user = await authAPI.getProfile();
       localStorage.setItem('user', JSON.stringify(user));
-      return {response:response, user};
+      return { response: loginResponse, user };
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Login failed');
     }
@@ -28,12 +28,12 @@ export const loginUser = createAsyncThunk(
 export const registerUser = createAsyncThunk(
   '/register',
   async (data: RegisterData, { rejectWithValue }) => {
-    try { 
-      const response = await authAPI.register(data);
-      localStorage.setItem('token', response.token);     
+    try {
+      const registerResponse = await authAPI.register(data);
+      localStorage.setItem('token', registerResponse.token);
       const user = await authAPI.getProfile();
       localStorage.setItem('user', JSON.stringify(user));
-      return {token:response.token, user};
+      return { response: registerResponse, user };
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Registration failed');
     }
@@ -41,14 +41,14 @@ export const registerUser = createAsyncThunk(
 );
 
 export const loginWithGoogle = createAsyncThunk(
-  '/loginWithGoogle',
+  '/google-login',
   async (googleToken: string, { rejectWithValue }) => {
     try {
       const response = await authAPI.loginWithGoogle(googleToken);
       localStorage.setItem('token', response.token);
       const user = await authAPI.getProfile();
       localStorage.setItem('user', JSON.stringify(user));
-      return {token:response.token, user};
+      return { response, user };
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Google login failed');
     }
@@ -56,32 +56,16 @@ export const loginWithGoogle = createAsyncThunk(
 );
 
 export const refreshToken = createAsyncThunk(
-  '/refreshToken',
+  '/refresh-token',
   async (_, { rejectWithValue }) => {
     try {
       const response = await authAPI.refreshToken();
       localStorage.setItem('token', response.token);
       const user = await authAPI.getProfile();
       localStorage.setItem('user', JSON.stringify(user));
-      return {token:response.token, user};
+      return { response, user };
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Token refresh failed');
-    }
-  }
-);
-
-export const logoutUser = createAsyncThunk(
-  '/logout',
-  async (_, { rejectWithValue }) => {
-    try {
-      await authAPI.logout();
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-    } catch (error: any) {
-      // Even if logout fails on server, clear local storage
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      return rejectWithValue(error.response?.data?.message || 'Logout failed');
     }
   }
 );
@@ -91,19 +75,30 @@ export const initializeAuth = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const token = localStorage.getItem('token');
-      const userStr = localStorage.getItem('user');
-      
-      if (token && userStr) {
-        const user = JSON.parse(userStr);
-        // Verify token is still valid
-        await authAPI.getProfile();
-        return { user, token };
+      if (!token) {
+        throw new Error('No token found');
       }
-      return { user: null, token: null };
-    } catch (error: any) {
+      const user = await authAPI.getProfile();
+      return { user, token };
+    } catch (_error: any) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      return { user: null, token: null };
+      throw _error;
+    }
+  }
+);
+
+export const logout = createAsyncThunk(
+  '/logout',
+  async (_, { rejectWithValue }) => {
+    try {
+      await authAPI.logout();
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+    } catch (_error: any) {
+      // Even if the API call fails, we still want to clear local storage
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
     }
   }
 );
@@ -115,17 +110,16 @@ const authSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
-    clearAuth: (state) => {
-      state.user = null;
-      state.token = null;
-      state.error = null;
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+    setUser: (state, action) => {
+      state.user = action.payload;
+    },
+    setToken: (state, action) => {
+      state.token = action.payload;
     },
   },
   extraReducers: (builder) => {
+    // Login cases
     builder
-      // Login
       .addCase(loginUser.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -134,13 +128,14 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.user = action.payload.user;
         state.token = action.payload.response.token;
-        state.error = null;
       })
       .addCase(loginUser.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
-      })
-      // Register
+      });
+
+    // Registration cases
+    builder
       .addCase(registerUser.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -148,14 +143,15 @@ const authSlice = createSlice({
       .addCase(registerUser.fulfilled, (state, action) => {
         state.isLoading = false;
         state.user = action.payload.user;
-        state.token = action.payload.token;
-        state.error = null;
+        state.token = action.payload.response.token;
       })
       .addCase(registerUser.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
-      })
-      // Google Login
+      });
+
+    // Google login cases
+    builder
       .addCase(loginWithGoogle.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -163,20 +159,33 @@ const authSlice = createSlice({
       .addCase(loginWithGoogle.fulfilled, (state, action) => {
         state.isLoading = false;
         state.user = action.payload.user;
-        state.token = action.payload.token;
-        state.error = null;
+        state.token = action.payload.response.token;
       })
       .addCase(loginWithGoogle.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
-      })
-      // Logout
-      .addCase(logoutUser.fulfilled, (state) => {
-        state.user = null;
-        state.token = null;
+      });
+
+    // Token refresh cases
+    builder
+      .addCase(refreshToken.pending, (state) => {
+        state.isLoading = true;
         state.error = null;
       })
-      // Initialize
+      .addCase(refreshToken.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.user = action.payload.user;
+        state.token = action.payload.response.token;
+      })
+      .addCase(refreshToken.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+        state.user = null;
+        state.token = null;
+      });
+
+    // Initialize auth cases
+    builder
       .addCase(initializeAuth.pending, (state) => {
         state.isLoading = true;
       })
@@ -187,9 +196,29 @@ const authSlice = createSlice({
       })
       .addCase(initializeAuth.rejected, (state) => {
         state.isLoading = false;
+        state.user = null;
+        state.token = null;
+      });
+
+    // Logout cases
+    builder
+      .addCase(logout.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(logout.fulfilled, (state) => {
+        state.isLoading = false;
+        state.user = null;
+        state.token = null;
+        state.error = null;
+      })
+      .addCase(logout.rejected, (state) => {
+        state.isLoading = false;
+        state.user = null;
+        state.token = null;
+        state.error = null;
       });
   },
 });
 
-export const { clearError, clearAuth } = authSlice.actions;
+export const { clearError, setUser, setToken } = authSlice.actions;
 export default authSlice.reducer;

@@ -3,17 +3,15 @@ import { useAppDispatch, useAppSelector } from '../../hooks/redux';
 import { fetchServices } from '../../store/slices/servicesSlice';
 import { fetchConsultants } from '../../store/slices/businessConsultantSlice'; 
 import { consultantServiceAPI } from '../../services/api';
-import { Link ,Unlink} from 'lucide-react';
+import { useToast } from '../../components/ToastProvider';
 
 const ConsultantLinking: React.FC = () => {
+  const { showSuccess, showError } = useToast();
   const dispatch = useAppDispatch();
   const { services } = useAppSelector((state) => state.services);
   const { consultants } = useAppSelector((state) => state.consultants);
   const [selectedServiceId, setSelectedServiceId] = useState<string | undefined>(undefined);
   const [selectedConsultants, setSelectedConsultants] = useState<string[]>([]);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [isVisible, setIsVisible] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     dispatch(fetchServices());
@@ -40,17 +38,17 @@ const ConsultantLinking: React.FC = () => {
         ));
         setSelectedConsultants([]);
         setSelectedServiceId('');
-        setSuccessMessage('The link was created successfully! Thank you!');
-        setIsVisible(true);
-        setTimeout(() => {
-          setIsVisible(false);
-          setSuccessMessage(null);
-        }, 5000);
-      } catch (error) {
+        showSuccess(
+          'קישור נוצר בהצלחה!',
+          'הקישור בין היועצים לשירות נוצר בהצלחה. תודה!'
+        );
+      } catch (_error) {
         setSelectedConsultants([]);
         setSelectedServiceId('');
-        setErrorMessage('There was an error creating the link. Please try again.');
-        setIsVisible(true);
+        showError(
+          'שגיאה ביצירת קישור',
+          'הייתה שגיאה ביצירת הקישור. אנא נסה שוב.'
+        );
       }
     }
   };
@@ -58,30 +56,6 @@ const ConsultantLinking: React.FC = () => {
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-900">Link Consultants to Service</h2>
-
-      {isVisible && successMessage && (
-        <div className={`fixed bottom-4 left-1/2 transform -translate-x-1/2 p-6 mb-4 text-white bg-gradient-to-r from-green-400 to-blue-500 rounded-lg shadow-lg transition-all duration-300 ease-in-out`}>
-          <div className="flex items-center">
-            <Link className="h-8 w-8 mr-3" />
-            <span className="font-semibold text-lg">{successMessage}</span>
-            <button onClick={() => setIsVisible(false)} className="ml-auto text-white hover:text-gray-200">
-              ✖
-            </button>
-          </div>
-        </div>
-      )}
-
-      {isVisible && errorMessage && (
-        <div className={`fixed bottom-4 left-1/2 transform -translate-x-1/2 p-6 mb-4 text-white bg-red-500 rounded-lg shadow-lg transition-all duration-300 ease-in-out`}>
-          <div className="flex items-center">
-            <Unlink className="h-8 w-8 mr-3" />
-            <span className="font-semibold text-lg">{errorMessage}</span>
-            <button onClick={() => setIsVisible(false)} className="ml-auto text-white hover:text-gray-200">
-              ✖
-            </button>
-          </div>
-        </div>
-      )}
 
       <div className="mb-4">
         <label className="block text-sm font-medium text-gray-700 mb-2">Select Service</label>

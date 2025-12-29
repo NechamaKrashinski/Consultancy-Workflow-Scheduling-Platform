@@ -27,6 +27,10 @@ const BusinessConsultant = BusinessConsulting.define('BusinessConsultant', {
         validate: {
             isIn: [['manager','consultant']]
         }
+    },
+    profile_image: {
+        type: DataTypes.STRING,
+        allowNull: true
     }
 }, {
     tableName: 'BusinessConsultant',

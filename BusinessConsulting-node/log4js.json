@@ -1,0 +1,81 @@
+{
+  "appenders": {
+    "console": {
+      "type": "console",
+      "layout": {
+        "type": "pattern",
+        "pattern": "%d{yyyy-MM-dd hh:mm:ss.SSS} [%p] %c - %m"
+      }
+    },
+    "app": {
+      "type": "file",
+      "filename": "logs/app.log",
+      "maxLogSize": 10485760,
+      "backups": 5,
+      "compress": true,
+      "layout": {
+        "type": "pattern",
+        "pattern": "%d{yyyy-MM-dd hh:mm:ss.SSS} [%p] %c - %m"
+      }
+    },
+    "errors": {
+      "type": "file",
+      "filename": "logs/errors.log",
+      "maxLogSize": 10485760,
+      "backups": 5,
+      "compress": true,
+      "layout": {
+        "type": "pattern",
+        "pattern": "%d{yyyy-MM-dd hh:mm:ss.SSS} [%p] %c - %m%n%s"
+      }
+    },
+    "auth": {
+      "type": "file",
+      "filename": "logs/auth.log",
+      "maxLogSize": 10485760,
+      "backups": 3,
+      "compress": true,
+      "layout": {
+        "type": "pattern",
+        "pattern": "%d{yyyy-MM-dd hh:mm:ss.SSS} [%p] %c - %m"
+      }
+    },
+    "database": {
+      "type": "file",
+      "filename": "logs/database.log",
+      "maxLogSize": 10485760,
+      "backups": 3,
+      "compress": true,
+      "layout": {
+        "type": "pattern",
+        "pattern": "%d{yyyy-MM-dd hh:mm:ss.SSS} [%p] %c - %m"
+      }
+    }
+  },
+  "categories": {
+    "default": {
+      "appenders": ["console", "app"],
+      "level": "info"
+    },
+    "auth": {
+      "appenders": ["console", "auth", "errors"],
+      "level": "debug"
+    },
+    "database": {
+      "appenders": ["console", "database"],
+      "level": "info"
+    },
+    "error": {
+      "appenders": ["console", "errors"],
+      "level": "error"
+    },
+    "development": {
+      "appenders": ["console"],
+      "level": "debug"
+    },
+    "production": {
+      "appenders": ["app", "errors"],
+      "level": "warn"
+    }
+  }
+}

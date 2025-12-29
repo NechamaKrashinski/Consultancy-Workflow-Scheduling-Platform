@@ -1,0 +1,29 @@
+# Node modules
+node_modules/
+
+# Logs
+logs/
+*.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# SQLite DB files
+*.sqlite
+*.sqlite3
+database.sqlite
+
+# VSCode
+.vscode/
+
+# Dist / build
+dist/
+
+# npm package lock
+package-lock.json
+
+# OS files
+.DS_Store
+Thumbs.db

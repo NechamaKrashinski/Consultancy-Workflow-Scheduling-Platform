@@ -27,3 +27,24 @@ A full-stack, enterprise-grade application engineered to manage the complete lif
 | **Architecture** | RESTful APIs, OOP Principles, Normalized SQL Design (1:N, N:M) |
 
 ---
+
+## 🧰 Utility scripts (development)
+
+This repository includes a couple of small helper scripts used during development and testing. They are optional and intended for local use only.
+
+- `npm run check-db` — Run a quick database health check that lists services, consultants, business hours and meetings using `check_database.js`.
+- `npm run add-sample-data` — Insert sample services, a sample consultant, consultant-service links and business hours into a local SQLite database using `add_sample_data.js`.
+
+Notes:
+- These scripts assume a local SQLite file (default `database.sqlite`) unless you've modified the connection in the scripts.
+- Never commit real database files or `.env` files containing secrets. A `.gitignore` is included to ignore `database.sqlite`, `node_modules/`, and common env files.
+- If you don't want these scripts in the main repository, you can move them to a `scripts/` folder or remove them; they are provided to make local testing and demoing easier.
+
+How to run (Windows PowerShell):
+
+```powershell
+npm install
+npm run check-db
+npm run add-sample-data
+```
+

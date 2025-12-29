@@ -1,5 +1,26 @@
 {
+  "name": "business-consulting-utils",
+  "version": "0.0.1",
+  "description": "Small root helper scripts for the Business Consulting project (DB check and sample data).",
+  "main": "index.js",
+  "scripts": {
+    "check-db": "node check_database.js",
+    "add-sample-data": "node add_sample_data.js",
+    "start": "node add_sample_data.js"
+  },
+  "keywords": [
+    "business",
+    "consulting",
+    "scripts"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
-    "@emailjs/nodejs": "^5.0.2"
+    "@emailjs/nodejs": "^5.0.2",
+    "sequelize": "^6.37.7",
+    "sqlite3": "^5.1.6"
   }
 }

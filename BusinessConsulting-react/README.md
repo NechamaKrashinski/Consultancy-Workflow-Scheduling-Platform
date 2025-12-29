@@ -72,11 +72,11 @@ A modern, responsive **React** application built with **TypeScript** and **Tailw
 
 | Component | Technology | Version |
 |-----------|------------|---------|
-| **Framework** | React | ^18.2.0 |
-| **Language** | TypeScript | ^5.0.0 |
-| **Build Tool** | Vite | ^4.4.0 |
-| **Styling** | Tailwind CSS | ^3.3.0 |
-| **State Management** | Redux Toolkit | ^1.9.0 |
+| **Framework** | React | ^18.3.1 |
+| **Language** | TypeScript | ^5.5.3 |
+| **Build Tool** | Vite | ^5.4.2 |
+| **Styling** | Tailwind CSS | ^3.4.1 |
+| **State Management** | Redux Toolkit | ^2.8.2 |
 | **HTTP Client** | Axios | ^1.10.0 |
 | **Routing** | React Router | ^6.22.0 |
 | **Icons** | Lucide React | ^0.344.0 |
@@ -200,21 +200,17 @@ npx tailwindcss init -p
 ```bash
 # Development
 npm run dev          # Start development server
-npm run dev:host     # Start with network access
 
 # Building
 npm run build        # Build for production
 npm run preview      # Preview production build
 
 # Code Quality
-npm run lint         # Run ESLint
-npm run lint:fix     # Fix ESLint issues
-npm run type-check   # TypeScript type checking
+npm run lint         # Run ESLint (defined in package.json)
 
-# Testing
-npm run test         # Run tests
-npm run test:watch   # Run tests in watch mode
-npm run test:coverage # Run tests with coverage
+# Notes
+# - The package.json for this project defines: "dev", "build", "lint", and "preview" scripts.
+# - If you want type checking, testing or additional helper scripts (type-check, test, lint:fix, etc.), add them to package.json and install the required dev dependencies (for example jest, @types/jest, ts-node, or tsc).
 ```
 
 ### 📁 Project Structure

@@ -20,6 +20,8 @@
 
 A modern, responsive **React** application built with **TypeScript** and **Tailwind CSS** for managing business consulting services. This professional frontend provides an intuitive interface for consultants and clients to manage appointments, services, and profiles.
 
+This project was bootstrapped using the BOLT starter/boilerplate (Bolt.new) which provides common infrastructure and conventions for rapid development.
+
 ### 🎯 User Types
 - **👨‍💼 Business Consultants** - Manage services, appointments, and client relationships
 - **👥 Clients** - Book consultations, view schedules, and manage profiles
@@ -81,6 +83,7 @@ A modern, responsive **React** application built with **TypeScript** and **Tailw
 | **Routing** | React Router | ^6.22.0 |
 | **Icons** | Lucide React | ^0.344.0 |
 | **UI Components** | React Select | ^5.10.1 |
+| **Starter / Boilerplate** | BOLT | (project-specific) |
 
 ---
 
@@ -543,14 +546,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 👨‍💻 Author
-
-**Your Name**
-- GitHub: [@yourusername](https://github.com/yourusername)
-- LinkedIn: [Your LinkedIn](https://linkedin.com/in/yourprofile)
-- Email: your.email@example.com
-
----
 
 ## 🙏 Acknowledgments
 
@@ -558,6 +553,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Tailwind CSS for beautiful styling
 - Redux Toolkit for state management
 - Vite for lightning-fast builds
+- Bolt.new
 - All open-source contributors
 
 ---

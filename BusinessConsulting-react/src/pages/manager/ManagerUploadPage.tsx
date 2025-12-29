@@ -155,7 +155,7 @@ const ManagerUploadPage = () => {
                 {/* Footer */}
                 <div className="mt-8 text-center text-sm text-gray-500">
                     <p>
-                        שרת יועצים מאובטח 🛡️ | גיבוי יומי 💾 | תמיכה 24/7 📞
+                        שרת יועצים מאובטח 🛡️ | גיבוי יומי 💾 | תמיכה 24/6 📞
                         <br />
                         לתמיכה טכנית: <a href="mailto:tech@businessconsulting.co.il" className="text-green-600 hover:underline">tech@businessconsulting.co.il</a>
                     </p>
